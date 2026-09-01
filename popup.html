@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CarryBee Auto-Flow</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="popup-outer">
+    <div class="popup-inner">
+      <header class="popup-header">
+        <img src="icons/icon48.png" alt="CarryBee" class="popup-logo" />
+        <h1 class="popup-title">CarryBee Auto-Flow</h1>
+      </header>
+
+      <div class="status-row">
+        <span class="status-label" id="statusLabel">—</span>
+        <label class="toggle-wrapper">
+          <input type="checkbox" id="toggle" class="toggle-input" disabled aria-label="Enable auto-flow" />
+          <span class="toggle-track">
+            <span class="toggle-thumb"></span>
+          </span>
+        </label>
+      </div>
+
+      <section class="mode-section">
+        <div class="mode-label">Processing Mode</div>
+        <div class="mode-grid">
+          <button class="mode-pill-outer" id="btn-merchant" disabled>
+            <span class="mode-pill-inner">
+              <svg class="mode-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                <path d="M3.27 6.96L12 12.01l8.73-5.05" />
+                <path d="M12 22.08V12" />
+              </svg>
+              Merchant Order
+            </span>
+          </button>
+          <button class="mode-pill-outer" id="btn-phone" disabled>
+            <span class="mode-pill-inner">
+              <svg class="mode-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+              </svg>
+              Customer Phone
+            </span>
+          </button>
+          <button class="mode-pill-outer" id="btn-cod" disabled>
+            <span class="mode-pill-inner">
+              <svg class="mode-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 6v6l4 2" />
+              </svg>
+              COD Quantity
+            </span>
+          </button>
+          <button class="mode-pill-outer" id="btn-consignment" disabled>
+            <span class="mode-pill-inner">
+              <svg class="mode-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              Consignment ID
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <div class="divider"></div>
+
+      <section class="tracking-section">
+        <div class="tracking-header">
+          <span class="tracking-label">Sorted Consignments</span>
+          <span class="sorted-count" id="sorted-count">—</span>
+        </div>
+        <div class="dropdown-wrapper">
+          <div class="dropdown-outer">
+            <select class="dropdown-inner" id="merchant-select">
+              <option value="">Select business name</option>
+            </select>
+          </div>
+        </div>
+        <div class="list-outer">
+          <div class="list-inner" id="consignment-list">
+            <div class="list-empty">No data</div>
+          </div>
+        </div>
+        <div class="action-row">
+          <button class="action-btn primary" id="copy-btn" disabled>
+            <span>Copy All</span>
+            <span class="btn-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            </span>
+          </button>
+          <button class="action-btn danger" id="clear-btn" disabled>
+            <span>Clear</span>
+            <span class="btn-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <p class="hint">
+        Toggle ON, pick a mode. Consignments tracked per business.
+        <br>
+        <strong>Shortcuts:</strong> Ctrl+Shift+1/2/3/4 to switch modes instantly.
+      </p>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

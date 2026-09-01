@@ -1,0 +1,67 @@
+name: Build & Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create dist directory structure
+        run: |
+          mkdir -p dist
+          cp manifest.json dist/
+          cp popup.html popup.css popup.js dist/
+          cp content.js content.css dist/
+          cp background.js dist/
+          cp options.html options.css options.js dist/
+          cp -r icons dist/
+
+      - name: Create zip
+        run: |
+          cd dist
+          zip -r ../carrybee-extension-${{ github.ref_name }}.zip .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carrybee-extension-${{ github.ref_name }}
+          path: carrybee-extension-*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: carrybee-extension-*.zip
+          generate_release_notes: true
+          body: |
+            ## CarryBee Auto-Flow ${{ github.ref_name }}
+
+            ### Installation
+            1. Download the zip file below
+            2. Extract the zip
+            3. Open Chrome → `chrome://extensions/`
+            4. Enable "Developer mode"
+            5. Click "Load unpacked" → select the extracted folder
+
+            ### Keyboard Shortcuts
+            - `Ctrl+Shift+1` — Consignment ID mode
+            - `Ctrl+Shift+2` — Customer Phone mode
+            - `Ctrl+Shift+3` — Merchant Order ID mode
+            - `Ctrl+Shift+4` — COD Quantity mode
+
+            ### Owner
+            **Abu Taher**
+
+            ### GitHub
+            https://github.com/devabutaher/carrybee-extension

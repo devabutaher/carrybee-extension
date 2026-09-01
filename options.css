@@ -1,0 +1,321 @@
+/* CarryBee Auto-Flow — Settings Page Styles */
+
+:root {
+  --cb-blue: #2563eb;
+  --cb-blue-hover: #1d4ed8;
+  --cb-green: #16a34a;
+  --cb-red: #dc2626;
+  --cb-gray-50: #f9fafb;
+  --cb-gray-200: #e5e7eb;
+  --cb-gray-300: #d1d5db;
+  --cb-gray-500: #6b7280;
+  --cb-gray-700: #374151;
+  --cb-gray-900: #111827;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --font-family-base: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --transition-base: 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family-base);
+  background: var(--cb-gray-50);
+  color: var(--cb-gray-900);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.settings-container {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+/* ============ Header ============ */
+.settings-header {
+  margin-bottom: 32px;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.header-title {
+  font: 700 20px/1 var(--font-family-base);
+  color: var(--cb-gray-900);
+}
+
+.header-subtitle {
+  font: 400 13px/1.5 var(--font-family-base);
+  color: var(--cb-gray-500);
+}
+
+.upgrade-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--cb-blue);
+  color: white;
+  font: 500 12px/1 var(--font-family-base);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-base);
+}
+
+.upgrade-link:hover {
+  background: var(--cb-blue-hover);
+}
+
+/* ============ Sections ============ */
+.settings-section {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font: 600 11px/1 var(--font-family-base);
+  color: var(--cb-gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 10px;
+}
+
+/* ============ Setting Cards (Double-Bezel) ============ */
+.setting-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--cb-gray-50);
+  border: 1px solid var(--cb-gray-200);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-base);
+}
+
+.setting-card:hover {
+  border-color: var(--cb-gray-300);
+}
+
+.setting-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-label {
+  font: 500 13px/1 var(--font-family-base);
+  color: var(--cb-gray-900);
+}
+
+.setting-desc {
+  font: 400 11px/1.4 var(--font-family-base);
+  color: var(--cb-gray-500);
+}
+
+/* ============ Toggle Switch ============ */
+.toggle-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+  pointer-events: none;
+}
+
+.toggle-track {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  background: var(--cb-gray-300);
+  border-radius: 11px;
+  flex-shrink: 0;
+  transition: background var(--transition-base);
+  cursor: pointer;
+}
+
+.toggle-input:checked + .toggle-track {
+  background: var(--cb-green);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-base);
+  pointer-events: none;
+}
+
+.toggle-input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(18px);
+}
+
+.toggle-input:focus-visible + .toggle-track {
+  outline: 2px solid var(--cb-blue);
+  outline-offset: 2px;
+}
+
+/* ============ Select ============ */
+.setting-select {
+  width: 160px;
+  height: 36px;
+  padding: 0 10px;
+  font: 13px var(--font-family-base);
+  color: var(--cb-gray-700);
+  background: white;
+  border: 1px solid var(--cb-gray-200);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  outline: none;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.setting-select:focus {
+  border-color: var(--cb-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.setting-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 28px;
+}
+
+/* ============ Danger Button ============ */
+.btn-danger {
+  padding: 8px 14px;
+  font: 500 12px/1 var(--font-family-base);
+  color: white;
+  background: var(--cb-red);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+}
+
+.btn-danger:active {
+  transform: scale(0.97);
+}
+
+/* ============ Shortcuts Grid ============ */
+.shortcuts-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--cb-gray-50);
+  border: 1px solid var(--cb-gray-200);
+  border-radius: var(--radius-sm);
+}
+
+.shortcut-label {
+  font: 400 13px/1 var(--font-family-base);
+  color: var(--cb-gray-700);
+}
+
+.shortcut-key {
+  display: inline-block;
+  padding: 4px 8px;
+  font: 500 11px/1 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--cb-gray-700);
+  background: white;
+  border: 1px solid var(--cb-gray-200);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 var(--cb-gray-200);
+}
+
+/* ============ Footer ============ */
+.settings-footer {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--cb-gray-200);
+  text-align: center;
+}
+
+.settings-footer p {
+  font: 400 12px/1.5 var(--font-family-base);
+  color: var(--cb-gray-500);
+}
+
+.settings-footer a {
+  color: var(--cb-blue);
+  text-decoration: none;
+}
+
+.settings-footer a:hover {
+  text-decoration: underline;
+}
+
+/* ============ Responsive ============ */
+@media (max-width: 560px) {
+  .settings-container {
+    padding: 24px 16px;
+  }
+
+  .setting-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .setting-select {
+    width: 100%;
+  }
+}
+
+/* ============ Reduced Motion ============ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

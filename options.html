@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CarryBee Auto-Flow — Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="settings-container">
+    <header class="settings-header">
+      <div class="header-top">
+        <div class="header-brand">
+          <img src="icons/icon48.png" alt="CarryBee" class="header-logo" />
+          <h1 class="header-title">Settings</h1>
+          <span id="saved-indicator" style="opacity:0;transition:opacity 0.3s;color:var(--cb-green);font-weight:600;font-size:13px;">✓ Saved</span>
+        </div>
+        <a href="https://github.com/devabutaher/carrybee-extension" target="_blank" rel="noopener" class="upgrade-link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <polyline points="15 3 21 3 21 9" />
+            <line x1="10" y1="14" x2="21" y2="3" />
+          </svg>
+          Update on GitHub
+        </a>
+      </div>
+      <p class="header-subtitle">Customize CarryBee Auto-Flow behavior</p>
+    </header>
+
+    <section class="settings-section">
+      <h2 class="section-title">Display</h2>
+      <div class="settings-grid">
+        <label class="setting-card">
+          <div class="setting-info">
+            <span class="setting-label">Show main badge</span>
+            <span class="setting-desc">Display status badge on processing page</span>
+          </div>
+          <input type="checkbox" id="showMainBadge" class="toggle-input" checked aria-label="Show main badge" />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+
+        <label class="setting-card">
+          <div class="setting-info">
+            <span class="setting-label">Show progress badge (COD)</span>
+            <span class="setting-desc">Display processing count during COD batch</span>
+          </div>
+          <input type="checkbox" id="showProgressBadge" class="toggle-input" checked aria-label="Show progress badge" />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h2 class="section-title">Data</h2>
+      <div class="settings-grid">
+        <label class="setting-card">
+          <div class="setting-info">
+            <span class="setting-label">Daily reset time</span>
+            <span class="setting-desc">Auto-clear consignments at this time (BDT)</span>
+          </div>
+          <select id="resetHour" class="setting-select" aria-label="Daily reset time">
+            <option value="17">5:00 PM</option>
+            <option value="18">6:00 PM</option>
+            <option value="19" selected>7:00 PM</option>
+            <option value="20">8:00 PM</option>
+            <option value="21">9:00 PM</option>
+            <option value="22">10:00 PM</option>
+          </select>
+        </label>
+
+        <div class="setting-card">
+          <div class="setting-info">
+            <span class="setting-label">Clear all data</span>
+            <span class="setting-desc">Remove all stored consignments</span>
+          </div>
+          <button id="clearAll" class="btn-danger">Clear All</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h2 class="section-title">Keyboard Shortcuts</h2>
+      <div class="shortcuts-grid">
+        <div class="shortcut-item">
+          <span class="shortcut-label">Consignment ID mode</span>
+          <kbd class="shortcut-key">Ctrl+Shift+1</kbd>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-label">Customer Phone mode</span>
+          <kbd class="shortcut-key">Ctrl+Shift+2</kbd>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-label">Merchant Order ID mode</span>
+          <kbd class="shortcut-key">Ctrl+Shift+3</kbd>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-label">COD Quantity mode</span>
+          <kbd class="shortcut-key">Ctrl+Shift+4</kbd>
+        </div>
+      </div>
+    </section>
+
+    <footer class="settings-footer">
+      <p><span id="version">CarryBee Auto-Flow</span></p>
+      <p>Owner: <strong>Abu Taher</strong></p>
+      <p>
+        <a href="https://github.com/devabutaher/carrybee-extension" target="_blank" rel="noopener">
+          Update on GitHub
+        </a>
+      </p>
+    </footer>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
