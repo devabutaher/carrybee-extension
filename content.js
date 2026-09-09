@@ -23,7 +23,6 @@
     rowPollIntervalMs: 150,
     rowPollMaxMs: 1500,
     weightInputWaitMs: 2000,
-    weightToastTimeoutMs: 3000,
     printToastTimeoutMs: 12000,
     sortToastTimeoutMs: 12000,
     badgeDisplayMs: 10000,
@@ -405,7 +404,8 @@
       recordToast(text);
 
       // Detect manual sort while extension is in a non-IDLE state
-      if (isSortToast(text.toLowerCase()) && state !== 'IDLE') {
+      // Skip during PRINTING/SORTING — extension handles those toasts itself
+      if (isSortToast(text.toLowerCase()) && state !== 'IDLE' && state !== 'PRINTING' && state !== 'SORTING') {
         handleManualSortCompletion();
       }
     }
@@ -423,7 +423,10 @@
   }
 
   function waitForToast(matchFn, timeout) {
-    const sinceMark = lastToastAt;
+    return waitForToastSince(matchFn, lastToastAt, timeout);
+  }
+
+  function waitForToastSince(matchFn, sinceMark, timeout) {
     return waitFor(() => {
       const ev = lastToastEvents.find(
         (e) => e.at > sinceMark && matchFn(e.text.toLowerCase())
@@ -432,7 +435,6 @@
     }, { interval: 100, timeout });
   }
 
-  const isWeightToast = (t) => t.includes('weight');
   const isPrintSentToast = (t) => t.includes('sending to printer') || t.includes('pdf generated');
   const isSortToast = (t) => t.includes('sorted') && !t.includes('unsorted');
 
@@ -774,6 +776,15 @@
     currentAbortController = null;
     pendingSortConsignmentId = null;
 
+    // Close weight editor — find X button next to the weight input
+    const weightInput = document.querySelector(SEL.weightInput);
+    if (weightInput) {
+      const closeBtn = weightInput.parentElement?.querySelector('svg.lucide-x');
+      if (closeBtn) {
+        closeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      }
+    }
+
     if (confirmKeydownHandler) {
       const input = SEL.phoneInput();
       input?.removeEventListener('keydown', confirmKeydownHandler);
@@ -792,6 +803,7 @@
       cycleToken++;
       state = 'IDLE';
     }
+    showIdleStatus();
   }
 
   // ============ COD QUANTITY MODE ============
@@ -829,13 +841,16 @@
   /** Main COD batch loop: print → sort each row until target reached. */
   async function runCodBatch(myToken) {
     while (codQuantityCounter < codQuantityTarget && myToken === cycleToken) {
+      clearCycleCache();
       state = 'PROCESSING';
-      setCodProgress(`Processing ${codQuantityCounter + 1}/${codQuantityTarget}`);
 
       // Wait for the table to settle after the previous row was sorted/removed
       const row = await waitFor(() => {
         const rows = getRows();
-        return rows[0] || null;
+        const first = rows[0];
+        if (!first) return null;
+        if (!findActionButton(first, 'lucide-printer')) return null;
+        return first;
       }, { interval: 200, timeout: 3000 });
 
       if (myToken !== cycleToken) return;
@@ -859,6 +874,8 @@
         }
         return;
       }
+
+      setCodProgress(`Processing ${codQuantityCounter + 1}/${codQuantityTarget}`);
 
       const consignmentId = getConsignmentIdFromRow(row);
 
@@ -914,13 +931,16 @@
   async function printThenSort(row, myToken) {
     // ---- Print ----
     state = 'PRINTING';
-    setStatus('Printing...', 'working');
 
+    const printSinceMark = lastToastAt;
     const printBtn = findActionButton(row, 'lucide-printer');
+    if (!printBtn) {
+      setStatus('Print button missing', 'error');
+      return { ok: false, reason: 'print-btn-missing' };
+    }
     printBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    if (myToken !== cycleToken) return { ok: false, reason: 'stopped' };
 
-    const printToast = await waitForToast(isPrintSentToast, CFG.printToastTimeoutMs);
+    const printToast = await waitForToastSince(isPrintSentToast, printSinceMark, CFG.printToastTimeoutMs);
     if (myToken !== cycleToken) return { ok: false, reason: 'stopped' };
 
     if (!printToast) {
@@ -931,13 +951,16 @@
 
     // ---- Sort ----
     state = 'SORTING';
-    setStatus('Sorting...', 'working');
 
+    const sortSinceMark = lastToastAt;
     const sortBtn = findActionButton(row, 'lucide-arrow-down-wide-narrow');
+    if (!sortBtn) {
+      setStatus('Sort button missing', 'error');
+      return { ok: false, reason: 'sort-btn-missing' };
+    }
     sortBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    if (myToken !== cycleToken) return { ok: false, reason: 'stopped' };
 
-    const sortToast = await waitForToast(isSortToast, CFG.sortToastTimeoutMs);
+    const sortToast = await waitForToastSince(isSortToast, sortSinceMark, CFG.sortToastTimeoutMs);
     if (myToken !== cycleToken) return { ok: false, reason: 'stopped' };
 
     if (!sortToast) {
@@ -965,22 +988,24 @@
     // ---- Weight Edit ----
     if (includeWeight) {
       state = 'WEIGHT_EDIT';
-      setStatus('Opening weight editor...', 'working');
 
-      const pencil = findWeightIcon(row);
-      if (!pencil) {
-        await showErrorAndWait('✗ Failed', 2000, myToken);
-        return;
+      let weightInput = findWeightNumberInput(row);
+      if (!weightInput) {
+        // Editor not open yet — click pencil to open
+        const pencil = findWeightIcon(row);
+        if (!pencil) {
+          await showErrorAndWait('✗ Failed', 2000, myToken);
+          return;
+        }
+
+        pencil.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+        weightInput = await waitFor(() => findWeightNumberInput(row), {
+          interval: 100,
+          timeout: CFG.weightInputWaitMs,
+        });
+        if (myToken !== cycleToken) return;
       }
-
-      pencil.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      if (myToken !== cycleToken) return;
-
-      const weightInput = await waitFor(() => findWeightNumberInput(row), {
-        interval: 100,
-        timeout: CFG.weightInputWaitMs,
-      });
-      if (myToken !== cycleToken) return;
 
       if (!weightInput) {
         await showErrorAndWait('✗ Failed', 2000, myToken);
@@ -989,7 +1014,6 @@
 
       weightInput.focus();
       weightInput.select();
-      const originalWeightValue = (weightInput.value || '').trim();
       pendingSortConsignmentId = consignmentId;
       state = 'WEIGHT_ENTRY';
       setStatus('Enter weight', 'wait-input');
@@ -1012,20 +1036,6 @@
         weightInput.addEventListener('keydown', onKeydown);
       });
       if (myToken !== cycleToken) return;
-
-      const finalWeightValue = (weightInput.value || '').trim();
-      const weightWasChanged = finalWeightValue !== originalWeightValue;
-
-      if (weightWasChanged) {
-        setStatus('Saving...', 'working');
-        const weightToast = await waitForToast(isWeightToast, CFG.weightToastTimeoutMs);
-        if (myToken !== cycleToken) return;
-        if (!weightToast) {
-          setStatus('Weight entry timed out', 'error');
-          await sleep(600);
-          if (myToken !== cycleToken) return;
-        }
-      }
     }
 
     // ---- Print + Sort (shared helper) ----
@@ -1076,6 +1086,15 @@
         input.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') e.preventDefault();
         });
+
+        // Wire the gray X icon that clears the input
+        const clearIcon = input.parentElement?.querySelector('svg.lucide-x');
+        if (clearIcon && !clearIcon.dataset.cbWired) {
+          clearIcon.dataset.cbWired = '1';
+          clearIcon.addEventListener('click', () => {
+            resetStateForNewInput();
+          });
+        }
       }
     }
 

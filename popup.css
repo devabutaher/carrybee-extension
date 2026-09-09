@@ -81,6 +81,26 @@ body {
   margin: 0;
 }
 
+.popup-github-link {
+  margin-left: auto;
+  color: var(--cb-gray-400);
+  transition: color var(--transition-fast);
+  display: flex;
+  align-items: center;
+}
+
+.popup-github-link:hover {
+  color: var(--cb-gray-700);
+}
+
+.popup-footer {
+  text-align: center;
+  margin-top: 10px;
+  font: 10px var(--font-family-base);
+  color: var(--cb-gray-400);
+  letter-spacing: 0.3px;
+}
+
 /* ============ Status Row ============ */
 .status-row {
   display: flex;

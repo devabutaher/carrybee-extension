@@ -162,8 +162,8 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     return;
   }
 
-  // URL guard: must be on CarryBee order processing page
-  if (!tab.url?.includes('hive.carrybee.com/order-processing')) {
+  // URL guard: must be on CarryBee order processing or sub-sort page
+  if (!tab.url?.includes('hive.carrybee.com/order-processing') && !tab.url?.includes('hive.carrybee.com/sub-sort')) {
     setUiDisabled();
     return;
   }

@@ -205,6 +205,11 @@ body > #cb-badge-container {
   transform: scale(0.97);
 }
 
+/* Hide stray CarryBee X icon floating over COD buttons */
+svg.lucide-x.text-gray-400 {
+  display: none !important;
+}
+
 /* ============ Reduced Motion ============ */
 @media (prefers-reduced-motion: reduce) {
   #cb-auto-badge,

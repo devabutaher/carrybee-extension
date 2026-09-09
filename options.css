@@ -194,7 +194,7 @@ body {
 .setting-select {
   width: 160px;
   height: 36px;
-  padding: 0 10px;
+  padding: 0 28px 0 10px;
   font: 13px var(--font-family-base);
   color: var(--cb-gray-700);
   background: white;
@@ -203,19 +203,15 @@ body {
   flex-shrink: 0;
   outline: none;
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
 }
 
 .setting-select:focus {
   border-color: var(--cb-blue);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-}
-
-.setting-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  padding-right: 28px;
 }
 
 /* ============ Danger Button ============ */
