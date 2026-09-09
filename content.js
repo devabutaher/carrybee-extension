@@ -124,6 +124,7 @@
   let currentAbortController = null;
   let pendingSortConsignmentId = null;
   let pendingBatchConsignments = [];
+  let lastClickedRowId = null;
 
   // ============ BADGE ELEMENTS ============
   let badgeOuterEl = null;
@@ -403,10 +404,17 @@
       toastTextByNode.set(t, text);
       recordToast(text);
 
-      // Detect manual sort while extension is in a non-IDLE state
-      // Skip during PRINTING/SORTING — extension handles those toasts itself
-      if (isSortToast(text.toLowerCase()) && state !== 'IDLE' && state !== 'PRINTING' && state !== 'SORTING') {
-        handleManualSortCompletion();
+      if (isSortToast(text.toLowerCase())) {
+        // Extension is processing — handle via existing flow
+        if (state !== 'IDLE' && state !== 'PRINTING' && state !== 'SORTING') {
+          handleManualSortCompletion();
+        }
+        // Track manual sorts (extension OFF or IDLE) via click tracker
+        if (lastClickedRowId && (state === 'IDLE' || !enabled)) {
+          const bizName = getBusinessName();
+          if (bizName) addConsignmentId(lastClickedRowId, bizName);
+          lastClickedRowId = null;
+        }
       }
     }
   }
@@ -775,6 +783,7 @@
     currentAbortController?.abort();
     currentAbortController = null;
     pendingSortConsignmentId = null;
+    lastClickedRowId = null;
 
     // Close weight editor — find X button next to the weight input
     const weightInput = document.querySelector(SEL.weightInput);
@@ -1199,6 +1208,19 @@
   }
 
   /** Initialize the extension on page load. */
+  /** Always-on click listener: capture row ID when Sort button is clicked. */
+  function wireSortButtonTracker() {
+    document.body.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const icon = btn.querySelector('svg.lucide-arrow-down-wide-narrow');
+      if (!icon) return;
+      const row = btn.closest(SEL.row);
+      if (!row) return;
+      lastClickedRowId = row.getAttribute('data-order-id');
+    }, true);
+  }
+
   async function init() {
     try {
       await loadSettings();
@@ -1208,6 +1230,7 @@
       attachInputListeners();
       wireRuntimeMessages();
       wireSettingsListener();
+      wireSortButtonTracker();
 
       // Signal ready to popup
       chrome.runtime.sendMessage({ type: 'CB_CONTENT_READY', url: location.href }).catch(() => {});
