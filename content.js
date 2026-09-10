@@ -25,7 +25,7 @@
     weightInputWaitMs: 2000,
     printToastTimeoutMs: 12000,
     sortToastTimeoutMs: 12000,
-    badgeDisplayMs: 10000,
+    badgeDisplayMs: 3000,
   };
 
   // ============ SETTINGS ============
@@ -820,6 +820,7 @@
   /** Stop the current COD batch processing. */
   async function stopCodBatch() {
     cycleToken++;
+    await flushBatchConsignments();
     hideCodQuantityInput();
     setStatus(`Stopped — ${codQuantityCounter}/${codQuantityTarget} sorted`, 'error');
     setCodProgress(null);
@@ -892,6 +893,7 @@
       if (myToken !== cycleToken) return;
 
       if (!result.ok) {
+        await flushBatchConsignments();
         setCodProgress(null);
         await sleep(2500);
         if (myToken === cycleToken) {
@@ -914,6 +916,9 @@
 
       codQuantityCounter++;
     }
+
+    // Flush any remaining batched consignment IDs
+    await flushBatchConsignments();
 
     if (myToken === cycleToken) {
       setCodProgress(`✓ ${codQuantityCounter} sorted`);
@@ -947,13 +952,14 @@
       setStatus('Print button missing', 'error');
       return { ok: false, reason: 'print-btn-missing' };
     }
+    setStatus('Printing...', 'working');
     printBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     const printToast = await waitForToastSince(isPrintSentToast, printSinceMark, CFG.printToastTimeoutMs);
     if (myToken !== cycleToken) return { ok: false, reason: 'stopped' };
 
     if (!printToast) {
-      setStatus('Print failed — retry', 'error');
+      setStatus('Print failed', 'error');
       await sleep(1000);
       return { ok: false, reason: 'print-timeout' };
     }
@@ -967,15 +973,25 @@
       setStatus('Sort button missing', 'error');
       return { ok: false, reason: 'sort-btn-missing' };
     }
+    setStatus('Sorting...', 'working');
     sortBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-    const sortToast = await waitForToastSince(isSortToast, sortSinceMark, CFG.sortToastTimeoutMs);
-    if (myToken !== cycleToken) return { ok: false, reason: 'stopped' };
+    // Poll for sort completion: toast OR loading state (max 60s)
+    const DEADLINE = Date.now() + 60000;
+    let sortToast = null;
+    while (!sortToast && Date.now() < DEADLINE) {
+      if (myToken !== cycleToken) return { ok: false, reason: 'stopped' };
+      sortToast = await waitForToastSince(isSortToast, sortSinceMark, 500);
+      if (sortToast) break;
+      // Sort button replaced by spinner = still loading, keep waiting
+      const stillLoading = !findActionButton(row, 'lucide-arrow-down-wide-narrow') && document.body.contains(row);
+      if (!stillLoading) break;
+    }
 
     if (!sortToast) {
-      setStatus('Sort failed — retry', 'error');
+      setStatus('Sort failed', 'error');
       await sleep(1000);
-      return { ok: false, reason: 'sort-timeout' };
+      return { ok: false, reason: 'sort-failed' };
     }
 
     return { ok: true };
@@ -1056,9 +1072,9 @@
       return;
     }
 
-    // ---- Store consignment ID (batched for COD) ----
+    // ---- Store consignment ID ----
     if (consignmentId) {
-      await addConsignmentId(consignmentId, currentBusinessName, true);
+      await addConsignmentId(consignmentId, currentBusinessName, false);
     }
     if (myToken !== cycleToken) return;
 
@@ -1207,6 +1223,57 @@
     });
   }
 
+  // ============ URL-BASED AUTO-DISABLE (SPA NAVIGATION) ============
+
+  function isProcessingPage() {
+    const url = location.href;
+    return url.includes('/order-processing') || url.includes('/sub-sort');
+  }
+
+  function disableExtension() {
+    enabled = false;
+    mode = null;
+    cycleToken++;
+    state = 'IDLE';
+    currentAbortController?.abort();
+    currentAbortController = null;
+    pendingSortConsignmentId = null;
+    confirmResolve = null;
+    if (confirmKeydownHandler) {
+      const input = SEL.phoneInput();
+      input?.removeEventListener('keydown', confirmKeydownHandler);
+      confirmKeydownHandler = null;
+    }
+    setCodProgress(null);
+    hideCodQuantityInput();
+    hideBadge();
+  }
+
+  function onUrlChange() {
+    if (isProcessingPage()) {
+      showIdleStatus();
+    } else {
+      disableExtension();
+    }
+  }
+
+  /** Monkey-patch pushState/replaceState to detect SPA navigation. */
+  function wireUrlWatcher() {
+    const origPush = history.pushState;
+    const origReplace = history.replaceState;
+
+    history.pushState = function (...args) {
+      origPush.apply(this, args);
+      onUrlChange();
+    };
+    history.replaceState = function (...args) {
+      origReplace.apply(this, args);
+      onUrlChange();
+    };
+
+    window.addEventListener('popstate', onUrlChange);
+  }
+
   /** Initialize the extension on page load. */
   /** Always-on click listener: capture row ID when Sort button is clicked. */
   function wireSortButtonTracker() {
@@ -1231,6 +1298,8 @@
       wireRuntimeMessages();
       wireSettingsListener();
       wireSortButtonTracker();
+      wireUrlWatcher();
+      onUrlChange();
 
       // Signal ready to popup
       chrome.runtime.sendMessage({ type: 'CB_CONTENT_READY', url: location.href }).catch(() => {});

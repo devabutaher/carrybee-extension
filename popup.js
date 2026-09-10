@@ -210,7 +210,9 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && popupOpen) {
     popupOpen = false;
     if (activeTabId) {
-      chrome.tabs.sendMessage(activeTabId, { type: 'CB_POPUP_CLOSED' }, () => {});
+      chrome.tabs.sendMessage(activeTabId, { type: 'CB_POPUP_CLOSED' }, () => {
+        void chrome.runtime.lastError;
+      });
     }
   } else if (document.visibilityState === 'visible') {
     popupOpen = true;
@@ -219,7 +221,9 @@ document.addEventListener('visibilitychange', () => {
 
 window.addEventListener('pagehide', () => {
   if (popupOpen && activeTabId) {
-    chrome.tabs.sendMessage(activeTabId, { type: 'CB_POPUP_CLOSED' }, () => {});
+    chrome.tabs.sendMessage(activeTabId, { type: 'CB_POPUP_CLOSED' }, () => {
+      void chrome.runtime.lastError;
+    });
   }
 });
 

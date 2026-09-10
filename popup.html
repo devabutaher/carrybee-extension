@@ -9,8 +9,8 @@
   <div class="popup-outer">
     <div class="popup-inner">
       <header class="popup-header">
-        <img src="icons/icon48.png" alt="CarryBee" class="popup-logo" />
-        <h1 class="popup-title">CarryBee Auto-Flow</h1>
+        <img src="icons/icon48.png" alt="Carrybee" class="popup-logo" />
+        <h1 class="popup-title">Carrybee Auto-Flow</h1>
         <a href="https://github.com/devabutaher/carrybee-extension" target="_blank" class="popup-github-link" title="GitHub">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M7 17L17 7"/>
@@ -32,14 +32,12 @@
       <section class="mode-section">
         <div class="mode-label">Processing Mode</div>
         <div class="mode-grid">
-          <button class="mode-pill-outer" id="btn-merchant" disabled>
+          <button class="mode-pill-outer" id="btn-consignment" disabled>
             <span class="mode-pill-inner">
               <svg class="mode-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                <path d="M3.27 6.96L12 12.01l8.73-5.05" />
-                <path d="M12 22.08V12" />
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
-              Merchant Order
+              Consignment ID
             </span>
           </button>
           <button class="mode-pill-outer" id="btn-phone" disabled>
@@ -50,6 +48,16 @@
               Customer Phone
             </span>
           </button>
+          <button class="mode-pill-outer" id="btn-merchant" disabled>
+            <span class="mode-pill-inner">
+              <svg class="mode-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                <path d="M3.27 6.96L12 12.01l8.73-5.05" />
+                <path d="M12 22.08V12" />
+              </svg>
+              Merchant Order
+            </span>
+          </button>
           <button class="mode-pill-outer" id="btn-cod" disabled>
             <span class="mode-pill-inner">
               <svg class="mode-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -57,14 +65,6 @@
                 <path d="M12 6v6l4 2" />
               </svg>
               COD Quantity
-            </span>
-          </button>
-          <button class="mode-pill-outer" id="btn-consignment" disabled>
-            <span class="mode-pill-inner">
-              <svg class="mode-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-              Consignment ID
             </span>
           </button>
         </div>

@@ -82,7 +82,7 @@ body > #cb-badge-container {
 /* ============ COD Progress Badge ============ */
 #cb-cod-progress-badge-outer {
   position: fixed;
-  top: 120px;
+  top: 155px;
   right: 35px;
   z-index: 2147483646;
   padding: 1.5px;
