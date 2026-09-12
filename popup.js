@@ -182,7 +182,10 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       return;
     }
     render(!!response.enabled, response.mode);
-    loadConsignments();
+    // Check daily reset before loading consignments
+    chrome.runtime.sendMessage({ type: 'CB_CHECK_DAILY_RESET' }, () => {
+      loadConsignments();
+    });
   });
 });
 

@@ -445,6 +445,7 @@
 
   const isPrintSentToast = (t) => t.includes('sending to printer') || t.includes('pdf generated');
   const isSortToast = (t) => t.includes('sorted') && !t.includes('unsorted');
+  const isWeightToast = (t) => t.includes('successfully updated weight');
 
   // ============ STORAGE: Daily Reset + Consignment Tracking ============
 
@@ -1061,6 +1062,15 @@
         weightInput.addEventListener('keydown', onKeydown);
       });
       if (myToken !== cycleToken) return;
+
+      // Wait for weight update toast
+      const weightToast = await waitForToastSince(isWeightToast, lastToastAt, CFG.printToastTimeoutMs);
+      if (myToken !== cycleToken) return;
+      if (!weightToast) {
+        setStatus('Weight update failed', 'error');
+        await sleep(1000);
+        return;
+      }
     }
 
     // ---- Print + Sort (shared helper) ----

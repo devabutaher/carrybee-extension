@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Automates the Order Processing flow on CarryBee. Supports Merchant Order ID, Customer Phone, COD Quantity, and Consignment ID modes.",
   "minimum_chrome_version": "109",
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "alarms"],
   "background": {
     "service_worker": "background.js"
   },
