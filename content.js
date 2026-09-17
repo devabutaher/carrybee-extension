@@ -18,11 +18,12 @@
   // ============ CONFIGURATION ============
   /** Timing constants (ms) and limits used throughout the extension. */
   const CFG = {
-    debounceMs: 350,
-    errorBadgeDebounceMs: 400,
-    rowPollIntervalMs: 150,
+    debounceMs: 200,
+    errorBadgeDebounceMs: 200,
+    rowPollIntervalMs: 50,
     rowPollMaxMs: 1500,
     weightInputWaitMs: 2000,
+    weightToastTimeoutMs: 3000,
     printToastTimeoutMs: 12000,
     sortToastTimeoutMs: 12000,
     badgeDisplayMs: 3000,
@@ -445,7 +446,7 @@
 
   const isPrintSentToast = (t) => t.includes('sending to printer') || t.includes('pdf generated');
   const isSortToast = (t) => t.includes('sorted') && !t.includes('unsorted');
-  const isWeightToast = (t) => t.includes('successfully updated weight');
+  const isWeightToast = (t) => t.includes('weight');
 
   // ============ STORAGE: Daily Reset + Consignment Tracking ============
 
@@ -726,6 +727,24 @@
 
       // Phone mode: wait for user to confirm with Enter
       if (requireConfirm) {
+        // Validate ending digits match parcel phone
+        if (result) {
+          const row = result[0];
+          const phoneDiv = row.querySelectorAll(':scope > div')[2];
+          const phoneText = (phoneDiv?.textContent || '').trim();
+          const typedDigits = input.value.trim().replace(/\D/g, '');
+
+          if (typedDigits && phoneText && !phoneText.endsWith(typedDigits)) {
+            setStatus('Phone number mismatch', 'error');
+            await sleep(800);
+            if (myToken === cycleToken) {
+              state = 'IDLE';
+              showIdleStatus();
+            }
+            return;
+          }
+        }
+
         state = 'PHONE_CONFIRM';
         setStatus('Row found — press Enter to confirm', 'wait-input');
 
@@ -772,8 +791,8 @@
     else if (mode === 'cod') input = SEL.codInput();
 
     if (input) {
-      input.select();
       input.focus();
+      input.select();
     }
   }
 
@@ -1040,6 +1059,7 @@
 
       weightInput.focus();
       weightInput.select();
+      const originalWeightValue = (weightInput.value || '').trim();
       pendingSortConsignmentId = consignmentId;
       state = 'WEIGHT_ENTRY';
       setStatus('Enter weight', 'wait-input');
@@ -1063,13 +1083,18 @@
       });
       if (myToken !== cycleToken) return;
 
-      // Wait for weight update toast
-      const weightToast = await waitForToastSince(isWeightToast, lastToastAt, CFG.printToastTimeoutMs);
-      if (myToken !== cycleToken) return;
-      if (!weightToast) {
-        setStatus('Weight update failed', 'error');
-        await sleep(1000);
-        return;
+      const finalWeightValue = (weightInput.value || '').trim();
+      const weightWasChanged = finalWeightValue !== originalWeightValue;
+
+      if (weightWasChanged) {
+        setStatus('Saving...', 'working');
+        const weightToast = await waitForToastSince(isWeightToast, lastToastAt, CFG.weightToastTimeoutMs);
+        if (myToken !== cycleToken) return;
+        if (!weightToast) {
+          setStatus('Weight timeout', 'error');
+          await sleep(600);
+          return;
+        }
       }
     }
 
