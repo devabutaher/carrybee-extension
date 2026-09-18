@@ -1083,6 +1083,8 @@
       state = 'WEIGHT_ENTRY';
       setStatus('Enter weight', 'wait-input');
 
+      const weightSinceMark = lastToastAt;
+
       // Wait for Enter — with AbortController support
       await new Promise((resolve, reject) => {
         const onAbort = () => {
@@ -1106,10 +1108,14 @@
       const weightWasChanged = finalWeightValue !== originalWeightValue;
 
       if (weightWasChanged) {
-        // Wait for weight success toast, then proceed immediately
-        const weightSinceMark = lastToastAt;
-        const weightToast = await waitForToastSince(isWeightToast, weightSinceMark);
+        const weightToast = await waitForToastSince(isWeightToast, weightSinceMark, 3000);
         if (myToken !== cycleToken) return;
+        if (!weightToast) {
+          setStatus('Weight update failed', 'error');
+          await sleep(1500);
+          if (myToken !== cycleToken) return;
+          return;
+        }
       }
     }
 
