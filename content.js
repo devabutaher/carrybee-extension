@@ -23,7 +23,6 @@
     rowPollIntervalMs: 50,
     rowPollMaxMs: 1500,
     weightInputWaitMs: 2000,
-    weightToastTimeoutMs: 3000,
     printToastTimeoutMs: 12000,
     sortToastTimeoutMs: 12000,
     badgeDisplayMs: 3000,
@@ -427,6 +426,21 @@
     }
     pendingSortConsignmentId = null;
     state = 'IDLE';
+
+    // Resume auto-flow if input has a value
+    const inputConfigs = {
+      consignment: { getInput: SEL.consignmentInput, requireConfirm: false },
+      phone: { getInput: SEL.phoneInput, requireConfirm: true },
+      merchant: { getInput: SEL.merchantOrderInput, requireConfirm: false },
+    };
+    const cfg = inputConfigs[mode];
+    if (cfg) {
+      const input = cfg.getInput();
+      if (input && input.value.trim() && enabled) {
+        onSearchInputChanged(mode, cfg.getInput, cfg.requireConfirm);
+        return;
+      }
+    }
     refocusCurrentInput();
     showIdleStatus();
   }
@@ -718,7 +732,7 @@
             }
           }, CFG.errorBadgeDebounceMs);
         }
-        await sleep(1000);
+        await sleep(500);
         if (myToken === cycleToken) {
           state = 'IDLE';
         }
@@ -736,7 +750,7 @@
 
           if (typedDigits && phoneText && !phoneText.endsWith(typedDigits)) {
             setStatus('Phone number mismatch', 'error');
-            await sleep(800);
+            await sleep(1500);
             if (myToken === cycleToken) {
               state = 'IDLE';
               showIdleStatus();
@@ -1008,6 +1022,11 @@
       if (!stillLoading) break;
     }
 
+    // Row disappeared but toast may arrive shortly after — give one more chance
+    if (!sortToast) {
+      sortToast = await waitForToastSince(isSortToast, sortSinceMark, 3000);
+    }
+
     if (!sortToast) {
       setStatus('Sort failed', 'error');
       await sleep(1000);
@@ -1087,14 +1106,10 @@
       const weightWasChanged = finalWeightValue !== originalWeightValue;
 
       if (weightWasChanged) {
-        setStatus('Saving...', 'working');
-        const weightToast = await waitForToastSince(isWeightToast, lastToastAt, CFG.weightToastTimeoutMs);
+        // Wait for weight success toast, then proceed immediately
+        const weightSinceMark = lastToastAt;
+        const weightToast = await waitForToastSince(isWeightToast, weightSinceMark);
         if (myToken !== cycleToken) return;
-        if (!weightToast) {
-          setStatus('Weight timeout', 'error');
-          await sleep(600);
-          return;
-        }
       }
     }
 
@@ -1292,7 +1307,7 @@
     }
   }
 
-  /** Monkey-patch pushState/replaceState to detect SPA navigation. */
+  /** Monkey-patch pushState/replaceState + hashchange + setInterval fallback. */
   function wireUrlWatcher() {
     const origPush = history.pushState;
     const origReplace = history.replaceState;
@@ -1307,6 +1322,16 @@
     };
 
     window.addEventListener('popstate', onUrlChange);
+    window.addEventListener('hashchange', onUrlChange);
+
+    // Fallback: poll URL every 1s for React routing that bypasses pushState
+    let lastCheckedUrl = location.href;
+    setInterval(() => {
+      if (location.href !== lastCheckedUrl) {
+        lastCheckedUrl = location.href;
+        onUrlChange();
+      }
+    }, 1000);
   }
 
   /** Initialize the extension on page load. */
