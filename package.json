@@ -8,7 +8,8 @@
     "dev": "wxt dev",
     "build": "wxt build && node scripts/copy-content-css.mjs",
     "build:firefox": "wxt build -b firefox",
-    "dev:firefox": "wxt dev -b firefox"
+    "dev:firefox": "wxt dev -b firefox",
+    "package": "npm run build && node scripts/package.mjs"
   },
   "dependencies": {
     "dexie": "^4.0.11",
