@@ -1,0 +1,29 @@
+{
+  "name": "carrybee-auto-flow",
+  "version": "2.0.0",
+  "description": "Automates the Order Processing flow on CarryBee. Supports Merchant Order ID, Customer Phone, COD Quantity, and Consignment ID modes.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wxt dev",
+    "build": "wxt build && node scripts/copy-content-css.mjs",
+    "build:firefox": "wxt build -b firefox",
+    "dev:firefox": "wxt dev -b firefox"
+  },
+  "dependencies": {
+    "dexie": "^4.0.11",
+    "dexie-react-hooks": "^1.1.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.5.2"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^6.1.1",
+    "@wxt-dev/module-react": "^1.0.2",
+    "typescript": "^5.7.2",
+    "wxt": "^0.20.1"
+  }
+}

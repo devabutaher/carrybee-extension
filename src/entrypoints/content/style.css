@@ -1,0 +1,221 @@
+/**
+ * CarryBee Order Processing Auto-Flow — Content Styles
+ * Injected into hive.carrybee.com/order-processing/* pages.
+ * Styles badges, COD input, and progress indicators.
+ */
+
+:root {
+  --cb-blue: #2563eb;
+  --cb-blue-hover: #1d4ed8;
+  --cb-green: #16a34a;
+  --cb-red: #dc2626;
+  --cb-purple: #8b5cf6;
+  --cb-gray-300: #d1d5db;
+  --cb-gray-800: #1f2937;
+  --cb-white: #ffffff;
+  --font-family-base: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.1);
+  --transition-base: 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Badge Container */
+#cb-badge-container {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+body > #cb-badge-container {
+  position: fixed;
+  top: 110px;
+  right: 35px;
+  transform: none;
+}
+
+/* Main Badge */
+#cb-auto-badge-outer {
+  padding: 1.5px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+}
+
+#cb-auto-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-family: var(--font-family-base);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cb-white);
+  background: var(--cb-gray-800);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  max-width: 220px;
+  word-break: break-word;
+  line-height: 1.3;
+  transition: transform var(--transition-base), background var(--transition-base);
+}
+
+#cb-auto-badge[data-mode="info"] { background: var(--cb-blue); }
+#cb-auto-badge[data-mode="working"] { background: var(--cb-blue-hover); }
+#cb-auto-badge[data-mode="wait-input"] { background: #f59e0b; }
+#cb-auto-badge[data-mode="success"] {
+  background: var(--cb-green);
+  animation: badge-flash 0.4s ease-out;
+}
+#cb-auto-badge[data-mode="error"] { background: var(--cb-red); }
+
+@keyframes badge-flash {
+  0% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+/* COD Progress Badge */
+#cb-cod-progress-badge-outer {
+  position: fixed;
+  top: 155px;
+  right: 35px;
+  z-index: 2147483646;
+  padding: 1.5px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  display: none;
+}
+
+#cb-cod-progress-badge {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-family: var(--font-family-base);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cb-white);
+  background: var(--cb-purple);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  max-width: 220px;
+  line-height: 1.3;
+}
+
+/* COD Quantity Input */
+#cb-cod-quantity-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+
+#cb-cod-quantity-input {
+  width: 100%;
+  min-width: 100px;
+  max-width: 140px;
+  height: 46px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-family: var(--font-family-base);
+  border: 1px solid var(--cb-gray-300);
+  border-radius: 4px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+
+#cb-cod-quantity-input:focus {
+  border-color: var(--cb-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+#cb-cod-quantity-btn,
+#cb-cod-stop-btn {
+  all: revert;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 46px;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-family-base);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+#cb-cod-quantity-btn > *,
+#cb-cod-stop-btn > * {
+  all: revert;
+  display: revert;
+}
+
+#cb-cod-quantity-btn {
+  background: var(--cb-blue);
+  color: var(--cb-white);
+}
+
+#cb-cod-quantity-btn:hover {
+  background: var(--cb-blue-hover);
+}
+
+#cb-cod-quantity-btn:active {
+  transform: scale(0.97);
+}
+
+#cb-cod-quantity-btn .btn-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--transition-base);
+  flex-shrink: 0;
+}
+
+#cb-cod-quantity-btn:active .btn-icon {
+  transform: translateX(2px);
+}
+
+#cb-cod-stop-btn {
+  background: var(--cb-red);
+  color: var(--cb-white);
+  display: none;
+}
+
+#cb-cod-stop-btn:hover {
+  background: #b91c1c;
+}
+
+#cb-cod-stop-btn:active {
+  transform: scale(0.97);
+}
+
+/* Hide stray CarryBee X icon floating over COD buttons */
+svg.lucide-x.text-gray-400 {
+  display: none !important;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  #cb-auto-badge,
+  #cb-cod-progress-badge,
+  #cb-cod-quantity-btn,
+  #cb-cod-stop-btn {
+    transition-duration: 0.01ms !important;
+  }
+}
