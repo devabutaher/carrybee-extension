@@ -375,9 +375,11 @@
 
       for (const m of mutations) {
         if (hasToast && hasInputCandidate) break;
+        // Text updates inside existing toast nodes (old extension behavior)
+        if (!hasToast && m.type === 'characterData') hasToast = true;
         for (const node of m.addedNodes) {
           if (node.nodeType !== 1) continue;
-          if (!hasToast && node.matches?.(SEL.toast)) hasToast = true;
+          if (!hasToast && (node.matches?.(SEL.toast) || node.querySelector?.(SEL.toast))) hasToast = true;
           if (!hasInputCandidate && node.querySelector?.('input[placeholder]')) hasInputCandidate = true;
         }
       }
@@ -392,7 +394,7 @@
         inputRemountDebounceTimer = setTimeout(attachInputListeners, 100);
       }
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, characterData: true, subtree: true });
   }
 
   function processToasts() {
@@ -982,12 +984,8 @@
 
     const printSinceMark = lastToastAt;
     const printBtn = findActionButton(row, 'lucide-printer');
-    if (!printBtn) {
-      setStatus('Print button missing', 'error');
-      return { ok: false, reason: 'print-btn-missing' };
-    }
     setStatus('Printing...', 'working');
-    printBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    printBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     const printToast = await waitForToastSince(isPrintSentToast, printSinceMark, CFG.printToastTimeoutMs);
     if (myToken !== cycleToken) return { ok: false, reason: 'stopped' };
@@ -1003,12 +1001,8 @@
 
     const sortSinceMark = lastToastAt;
     const sortBtn = findActionButton(row, 'lucide-arrow-down-wide-narrow');
-    if (!sortBtn) {
-      setStatus('Sort button missing', 'error');
-      return { ok: false, reason: 'sort-btn-missing' };
-    }
     setStatus('Sorting...', 'working');
-    sortBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    sortBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     // Poll for sort completion: toast OR loading state (max 60s)
     const DEADLINE = Date.now() + 60000;
