@@ -251,8 +251,9 @@ export default defineContentScript({
     }
 
     const isPrintSentToast = (t: string): boolean =>
-      t.includes("sending to printer");
-    const isSortToast = (t: string): boolean => t.includes("sorted");
+      t.includes("sending to printer") || t.includes("pdf generated");
+    const isSortToast = (t: string): boolean =>
+      t.includes("sorted") && !t.includes("unsorted");
     const isWeightToast = (t: string): boolean => t.includes("weight");
 
     function processToasts(): void {
@@ -265,7 +266,12 @@ export default defineContentScript({
         recordToast(text);
 
         if (isSortToast(text.toLowerCase())) {
-          if (state !== "IDLE" && state !== "PRINTING" && state !== "SORTING") {
+          if (
+            enabled &&
+            mode &&
+            state !== "PRINTING" &&
+            state !== "SORTING"
+          ) {
             handleManualSortCompletion();
           }
           if (lastClickedRowId && (state === "IDLE" || !enabled)) {
@@ -340,10 +346,16 @@ export default defineContentScript({
 
         for (const m of mutations) {
           if (hasToast && hasInputCandidate) break;
+          // Text updates inside existing toast nodes (characterData mutations)
+          if (!hasToast && m.type === "characterData") hasToast = true;
           for (const node of m.addedNodes) {
             if (node.nodeType !== 1) continue;
             const el = node as Element;
-            if (!hasToast && el.matches?.(SEL.toast)) hasToast = true;
+            if (
+              !hasToast &&
+              (el.matches?.(SEL.toast) || el.querySelector?.(SEL.toast))
+            )
+              hasToast = true;
             if (!hasInputCandidate && el.querySelector?.("input[placeholder]"))
               hasInputCandidate = true;
           }
@@ -360,7 +372,11 @@ export default defineContentScript({
           inputRemountDebounceTimer = setTimeout(attachInputListeners, 100);
         }
       });
-      observer.observe(document.body, { childList: true, subtree: true });
+      observer.observe(document.body, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
     }
 
     // ============ STORAGE: Daily Reset + Consignment Tracking ============
@@ -584,12 +600,8 @@ export default defineContentScript({
 
       const printSinceMark = lastToastAt;
       const printBtn = findActionButton(row, "lucide-printer");
-      if (!printBtn) {
-        setStatus("Print button missing", "error");
-        return { ok: false, reason: "print-btn-missing" };
-      }
       setStatus("Printing...", "working");
-      printBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      printBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
       const printToast = await waitForToastSince(
         isPrintSentToast,
@@ -608,12 +620,8 @@ export default defineContentScript({
 
       const sortSinceMark = lastToastAt;
       const sortBtn = findActionButton(row, "lucide-arrow-down-wide-narrow");
-      if (!sortBtn) {
-        setStatus("Sort button missing", "error");
-        return { ok: false, reason: "sort-btn-missing" };
-      }
       setStatus("Sorting...", "working");
-      sortBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      sortBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
       const DEADLINE = Date.now() + 60000;
       let sortToast: string | null = null;
