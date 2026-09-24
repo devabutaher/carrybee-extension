@@ -1,38 +1,41 @@
-# Session — 2026-09-23/24
+# Session — 2026-09-24 (continued)
 
 ## Done this session
-- Released **v1.1.3** (toast observer characterData fix + button-missing checks removed)
-- Uncommitted batch (user: no commit yet, more fixes may come):
-  1. Manual sort → input refocus + resume (sort-toast handler covers IDLE)
-  2. Badges early: stable-count row poll (~400ms, was 1.7-1.9s)
-  3. Phone mismatch badge 2500ms
-  4. COD settle timeout 1000ms
-  5. Daily reset tz bug (UTC math, content+background), settings.resetHour honored, check on add/flush
-  6. Sort: row-removed=success; stuck 20s → "Sort failed" + ID tracked as sorted (`unverified`)
-  7. Settings upgrade: any-time reset (h/m/AM-PM 12h, `resetAtMinutes` + migration), Remember last mode (OFF), Skip weight step (OFF), Daily reset toggle (ON)
-  8. Badge persist on other pages: strict pathname check, `if (!enabled) return` in setStatus + setCodProgress hide-path always works, handleCommand/CB_SET_STATE ignore non-processing page, URL watcher wired first in init
-  9. Popup upgrade: `#total-sorted` (all-biz sum, green), tracking data loads on any page via chrome.storage, URL guard only disables toggle+mode buttons, strict pathname check
-  10. Cleanup: NEW `shared.js` (cbResolveResetMinutes/cbTodayResetMs — BDT math single source; manifest js:["shared.js","content.js"], background importScripts); deleted dead waitForToast, CFG.sortToastTimeoutMs, dead resetHour fallback in content; CFG gained sortPollMs/sortGraceTimeoutMs/sortDeadlineMs/weightToastTimeoutMs; renames setControlsDisabled + confirmEnterHandler/weightEnterHandler; background hoisted VALID_COMMANDS; JSDoc on every fn; headers updated (sub-sort, daily-reset duty, any-page popup)
-  11. Shortcut toggle: all 4 Ctrl+Shift+1/2/3/4 press-again-on-active-mode → OFF via shared `userDisable()` (also used by CB_SET_STATE off branch)
-  12. REMOVED Remember last mode entirely: settings card, defaults, persistSession/restoreSession/scheduleRestoreFocus, all call sites — fresh load always starts OFF; shortcut/popup paths still refocus input
-  13. Phone typed-only flow: settle-wait (400ms stable / Enter / 2000ms cap) before endsWith check; Enter remembered 1500ms (lastEnterAt) → match skips 2nd Enter; mismatch badge 2000ms (CFG.mismatchBadgeMs); badges: "No parcel found", "Parcel found — press Enter to confirm"
+- **Released v1.2.0** earlier (6 commits + lightweight tag, pushed v1 + tag) — v1 line complete
+- **Released v2.1.0** — full port of v1.1.3 + v1.2.0 into React/WXT clone at `C:\Users\write\Downloads\carrybee-new` (branch `v2`):
+  1. `184c635` fix(content): toast observer characterData + remove button missing checks
+  2. `6f45266` feat(content): phone settle, sort unverified tracking, shortcut toggle, badge guards (+CFG alignment, toast matcher fixes, processToasts gate, COD 1000ms, types PrintThenSortResult.unverified)
+  3. `6e6e79f` feat(settings): reset minutes picker, skip weight, daily reset toggle + live mirror (Settings type rewrite, date.ts pure-UTC math, storage migration + Fix B mirror, options 12h picker + Behavior, content `!settings.skipWeight`, deleted types/storage.ts)
+  4. `80f7e25` feat(popup): total sorted, tracking any page, clear via Dexie (Fix A)
+  5. `0f172aa` docs: readme v2.1.0 (also dropped stale Ctrl+Shift+X row, added toggle-off note)
+  6. `0cceace` chore(release): v2.1.0 (package.json + wxt.config 2.1.0, NEW .github/workflows/release.yml — windows-latest because package.mjs uses powershell Compress-Archive)
+- lightweight tag `v2.1.0`; pushed `origin v2`, `origin v2:main` (synced), `origin v2.1.0`
+- verified: `npx tsc --noEmit` exit 0, `npm run build` green, built manifest version 2.1.0
+- Actions: Release run #35973333295 in progress (tag v2.1.0)
 
-## Active files
-- `shared.js` — reset math (load FIRST in content list + SW importScripts)
-- `content.js`, `background.js`, `popup.js`, `options.*` — cleanup applied, syntax OK
-- `content.js` — settings/restore (31-85), checkDailyReset (~520), search/stable-count (~700), sort toast handler (~409), printThenSort (~1000), runFullCycle (~1049+1137)
-- `background.js` — checkDailyReset (resetAtMinutes + dailyResetEnabled)
-- `options.html/js/css` — time-selects, Behavior section, merge-save
+## Active files (carrybee-new, branch v2 @ 0cceace)
+- `src/entrypoints/content/index.ts` — CFG 84-102, badges 179+, toast watcher 243+, watchDom 336+, printThenSort ~585, runFullCycle ~660, onSearchInputChanged ~765, runCodBatch ~920, handleCommand ~1050, guards 1100+, init 1210
+- `src/types/index.ts` — Settings {showMainBadge, showProgressBadge, resetAtMinutes, dailyResetEnabled, skipWeight}; DEFAULT 19*60/true/false
+- `src/utils/date.ts` — resolveResetMinutes/todayResetMs/shouldDailyReset (pure UTC)
+- `src/utils/storage.ts` — Dexie; getSettings legacy resetHour migration; saveSettings mirrors chrome.storage.local.cbSettings; checkDailyReset guards dailyResetEnabled
+- `src/entrypoints/options/App.tsx` — 12h time-selects + Behavior toggles
+- `src/entrypoints/popup/App.tsx` — total counter, any-page load, Clear→Dexie
+- `.github/workflows/release.yml` — tag→zip→GH Release (windows-latest)
+- CarryBee-extension repo `v1` branch @ 366adbe = released v1.2.0 (do not modify unless asked)
 
 ## Key decisions
-- weight toast fail → STOP (no print+sort); row removed → sort success without toast
-- unverified sort → track ID, keep fail badge, no ✓ overwrite, COD batch continues
-- persistSession only on explicit user action (setMode/CB_SET_STATE), NOT disableExtension (URL guard)
-- options save = merge (preserves lastMode/lastEnabled)
+- React settings live-update = mirror write: options saves Dexie AND chrome.storage.local → content onChanged → refetch from background(Dexie). Mirror key `cbSettings`.
+- resetHour legacy migrated at read-time in getSettings (Dexie rows from v2.0.0)
+- release.yml on windows-latest — package.mjs powershell zip needs it (ubuntu has no powershell; GNU tar can't write .zip)
+- lightweight tag (matches v1 tags; v2.0.0 was annotated — inconsistent but lightweight = current convention)
+- main == v2 after release (both 0cceace)
 
 ## Next steps
-1. ~~User browser test~~ → released **v1.2.0** (6 commits + lightweight tag, pushed v1; build.yml includes shared.js in dist)
+1. Confirm Release run green + carrybee-v2.zip attached to GH Release v2.1.0
+2. Browser test extension (phone settle, sort unverified, shortcut toggle, settings live-update, popup Clear, daily reset at custom time)
+3. v1 line: browser-test v1.2.0 zip too (pending from previous session)
 
 ## Notes
-- v1 = JS line, v2 = React rewrite (origin/main) — do NOT mix
-- Release pattern: feat/fix splits → docs → `chore(release): vX.Y.Z` → lightweight tag → push branch + tag
+- Two clones: `carrybee-extension` (v1 line, working dir, has .opencode/plan.md+session.md) and `carrybee-new` (v2 line, on branch v2)
+- Same remote https://github.com/devabutaher/carrybee-extension
+- Release pattern: feat/fix splits → docs → `chore(release): vX.Y.Z` → lightweight tag → push branch + main-sync + tag → Actions attaches zip

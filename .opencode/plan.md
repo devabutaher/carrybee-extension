@@ -3,34 +3,32 @@
 Status legend: ✅ done | 🔄 in progress | ⬜ pending
 
 ## Line strategy
-- **v1** (branch `v1`): vanilla JS extension — all active work here
-- **v2** (branch `main`, tag v2.0.0): React rewrite — separate line
+- **v1** (branch `v1`): vanilla JS extension — released line, fixes only
+- **v2** (branches `v2` + `main`, tags v2.0.0/v2.1.0): React/WXT rewrite — active line
 
 ## Releases
-- ✅ v1.0.0 → v1.1.0 → v1.1.1 → v1.1.2 (tags on v1 line)
-- 🔄 v1.1.3 — toast observer fix + remove button-missing checks
+- ✅ v1.0.0 → v1.1.0 → v1.1.1 → v1.1.2 → v1.1.3 → **v1.2.0** (v1 line, all pushed + tagged)
+- ✅ v2.0.0 (React rewrite base)
+- ✅ **v2.1.0** — port of v1.1.3+v1.2.0 to React + 2 bonus fixes + release workflow
 
-## v1.1.3+ work (uncommitted batch)
-- ✅ Toast observer: `characterData: true` + `querySelector(toast)` — RELEASED in v1.1.3
-- ✅ Button-missing checks deleted — RELEASED in v1.1.3
-- 🔄 Uncommitted batch (commit when user says):
-  - ✅ Manual sort → refocus input (IDLE covered in sort-toast handler)
-  - ✅ Badges early: stable-count 200ms, hard cap 1000ms (~400ms badge, was 1.7-1.9s)
-  - ✅ Phone mismatch badge 1500 → 2500ms
-  - ✅ COD settle timeout 3000 → 1000ms
-  - ✅ Daily reset tz fix (UTC math) + settings.resetHour + add-time check
-  - ✅ Sort: row-removed = success; stuck 20s → "Sort failed" badge BUT tracked as sorted (unverified)
-  - ✅ Settings: reset time any h/m/AM-PM12h (`resetAtMinutes`, legacy migration)
-  - ✅ Settings: Skip weight step (default OFF), Daily reset toggle (default ON) — Remember last mode REMOVED entirely (user request)
-  - ✅ Badge on other pages fix: strict pathname isProcessingPage, setStatus/setCodProgress disabled-guard, handleCommand/CB_SET_STATE page guard, wireUrlWatcher early in init
-  - ✅ Popup: Total sorted counter (all businesses), tracking section works on ANY page (URL guard only disables toggle+modes), strict pathname guard
-  - ✅ Cleanup pass: shared.js (reset math dedup, manifest+importScripts), removed dead waitForToast + sortToastTimeoutMs + resetHour fallback, setUiDisabled→setControlsDisabled, onKeydown→confirmEnterHandler/weightEnterHandler, sort/weight literals→CFG keys, JSDoc on all fns, header/stale comment fixes
-- ⬜ Browser test all above
-- ✅ Released **v1.2.0**: 6-commit split (options/popup/shared/content/docs/release), lightweight tag `v1.2.0`, pushed `v1` + tag → Actions Build & Release (shared.js added to dist)
+## v2.1.0 port (DONE — released on branch v2)
+- ✅ content: toast observer `characterData` + nested toast query; print/sort button-missing checks removed (`?.dispatchEvent`)
+- ✅ content: isPrintSentToast `pdf generated`; isSortToast `&& !unsorted`; processToasts gate `enabled && mode`
+- ✅ content: stable-count row poll (200ms/1000ms cap), badges "No parcel found"/"Parcel found — press Enter"/"Multiple parcels found"
+- ✅ content: phone settle 400/2000ms + Enter remember 1500ms (lastEnterAt) + mismatch 2000ms
+- ✅ content: sort deadline 20s + rowRemoved=success + grace 3s + `unverified` tracked (no ✓ overwrite); COD row-wait 1000ms + skip disappear-wait if unverified
+- ✅ content: CFG aligned to v1 (sortPollMs/sortGraceTimeoutMs/sortDeadlineMs/weightToastTimeoutMs/mismatch/phone*); dead waitForToast + errorBadgeDebounceMs removed
+- ✅ content: guards — setStatus `!enabled`, setCodProgress v1-shape, strict pathname isProcessingPage, CB_SET_STATE page guard, shortcut press-again → userDisable (COMMAND_TO_MODE), wireUrlWatcher first in init
+- ✅ settings: `resetAtMinutes` + `dailyResetEnabled` + `skipWeight`; legacy resetHour migration in getSettings; types/storage.ts duplicate deleted; `!settings.skipWeight` in content
+- ✅ date.ts: pure-UTC `todayResetMs`/`resolveResetMinutes` (machine-tz independent); checkDailyReset guards dailyResetEnabled
+- ✅ options: 12h h/m/AM-PM picker (time-selects CSS), Behavior section (skipWeight + daily reset), save mirrors to `chrome.storage.local.cbSettings` (Fix B — onChanged live-update works)
+- ✅ popup: Total sorted counter + tracking loads on ANY page + Clear via Dexie `clearConsignmentsByBusiness` (Fix A)
+- ✅ README v2.1.0, version bump package.json + wxt.config (2.1.0)
+- ✅ NEW `.github/workflows/release.yml` — tag push → windows-latest → npm ci + package → GH Release with carrybee-v2.zip
+- ✅ 6 commits on `v2` (184c635…0cceace), lightweight tag `v2.1.0`, pushed `v2` + `main` + tag → Release run #35973333295
+- ⬜ Browser test after zip attaches
 
-## Older done (v1.1.2 and before)
-- ✅ COD batch ID flush, badge positioning/timing, sort 60s polling + final 3s toast wait
-- ✅ Phone ending validation, SPA nav detection (pushState/hashchange/setInterval)
-- ✅ Auto-flow resume after manual sort (`handleManualSortCompletion`)
-- ✅ Daily reset via chrome.alarms, popup reorder (Consignment→Phone→Merchant→COD)
-- ✅ `weightSinceMark` captured BEFORE Enter wait
+## Older done (v1 line)
+- ✅ v1.2.0: settings 12h picker, skipWeight, dailyResetEnabled, remember-mode REMOVED, badge guards, shortcut toggle, phone settle, sort unverified, popup total/any-page, shared.js, build.yml +shared.js
+- ✅ v1.1.3: toast observer characterData + button-missing checks removed
+- ✅ COD batch ID flush, badge positioning, SPA nav detection, auto-flow resume after manual sort, daily reset via alarms
