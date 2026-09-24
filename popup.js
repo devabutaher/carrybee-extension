@@ -1,8 +1,10 @@
 /**
  * CarryBee Auto-Flow — Popup Controller
  *
- * Communicates with content script via chrome.runtime messages.
- * Displays mode selection, toggle, and consignment tracking list.
+ * Hybrid data sources:
+ *   - Auto-flow state: message handshake with content script (processing page only)
+ *   - Tracking data: chrome.storage.local directly — works on ANY tab/page
+ * Displays mode selection, toggle, total sorted, and consignment lists.
  */
 
 // ============ DOM ELEMENTS ============
@@ -13,6 +15,7 @@ const btnPhone = document.getElementById('btn-phone');
 const btnCod = document.getElementById('btn-cod');
 const btnConsignment = document.getElementById('btn-consignment');
 const merchantSelect = document.getElementById('merchant-select');
+const totalSortedEl = document.getElementById('total-sorted');
 const sortedCount = document.getElementById('sorted-count');
 const consignmentList = document.getElementById('consignment-list');
 const copyBtn = document.getElementById('copy-btn');
@@ -36,17 +39,17 @@ function escapeHtml(str) {
 
 // ============ UI HELPERS ============
 
-/** Disable all controls when extension is not available. */
-function setUiDisabled() {
+/**
+ * Disable auto-flow controls when content script unavailable.
+ * Tracking section (dropdown/list/copy/clear) stays active on any page.
+ */
+function setControlsDisabled() {
   toggle.disabled = true;
   statusLabel.textContent = '—';
   btnMerchant.disabled = true;
   btnPhone.disabled = true;
   btnCod.disabled = true;
   btnConsignment.disabled = true;
-  merchantSelect.disabled = true;
-  copyBtn.disabled = true;
-  clearBtn.disabled = true;
 }
 
 /**
@@ -76,6 +79,8 @@ function loadConsignments() {
   chrome.storage.local.get(['cbConsignments_v2'], (res) => {
     const data = res.cbConsignments_v2 || { businesses: {} };
     allConsignments = data.businesses || {};
+    const total = Object.values(allConsignments).reduce((s, arr) => s + (arr?.length || 0), 0);
+    if (totalSortedEl) totalSortedEl.textContent = String(total);
     updateMerchantDropdown();
     if (selectedMerchant && allConsignments[selectedMerchant]) {
       displayList(selectedMerchant);
@@ -154,17 +159,29 @@ function displayList(merchant) {
 
 // ============ INITIALIZATION ============
 
+// Tracking data loads on ANY page — chrome.storage is extension-wide.
+chrome.runtime.sendMessage({ type: 'CB_CHECK_DAILY_RESET' }, () => {
+  void chrome.runtime.lastError;
+  loadConsignments();
+});
+
 /** Query active tab, verify URL, and handshake with content script. */
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   const tab = tabs && tabs[0];
   if (!tab || !tab.id) {
-    setUiDisabled();
+    setControlsDisabled();
     return;
   }
 
-  // URL guard: must be on CarryBee order processing or sub-sort page
-  if (!tab.url?.includes('hive.carrybee.com/order-processing') && !tab.url?.includes('hive.carrybee.com/sub-sort')) {
-    setUiDisabled();
+  // URL guard: strict pathname — must be CarryBee order processing or sub-sort page
+  let path = '';
+  try { path = new URL(tab.url || '').pathname; } catch { /* ignore */ }
+  const onProcessing =
+    path === '/order-processing' || path.startsWith('/order-processing/') ||
+    path === '/sub-sort' || path.startsWith('/sub-sort/');
+  const onHive = (() => { try { return new URL(tab.url || '').hostname === 'hive.carrybee.com'; } catch { return false; } })();
+  if (!onHive || !onProcessing) {
+    setControlsDisabled();
     return;
   }
 
@@ -172,20 +189,16 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
 
   // Handshake: send GET_STATE with timeout
   const timeout = setTimeout(() => {
-    setUiDisabled();
+    setControlsDisabled();
   }, 2000);
 
   chrome.tabs.sendMessage(activeTabId, { type: 'CB_GET_STATE' }, (response) => {
     clearTimeout(timeout);
     if (chrome.runtime.lastError || !response) {
-      setUiDisabled();
+      setControlsDisabled();
       return;
     }
     render(!!response.enabled, response.mode);
-    // Check daily reset before loading consignments
-    chrome.runtime.sendMessage({ type: 'CB_CHECK_DAILY_RESET' }, () => {
-      loadConsignments();
-    });
   });
 });
 
@@ -241,7 +254,7 @@ toggle.addEventListener('change', () => {
 
   chrome.tabs.sendMessage(activeTabId, msg, (response) => {
     if (chrome.runtime.lastError || !response) {
-      setUiDisabled();
+      setControlsDisabled();
       return;
     }
     render(!!response.enabled, response.mode);
@@ -264,7 +277,7 @@ toggle.addEventListener('change', () => {
     const msg = { type: 'CB_SET_STATE', enabled: true, mode };
     chrome.tabs.sendMessage(activeTabId, msg, (response) => {
       if (chrome.runtime.lastError || !response) {
-        setUiDisabled();
+        setControlsDisabled();
         return;
       }
       render(!!response.enabled, response.mode);
