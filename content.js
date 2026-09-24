@@ -1,7 +1,9 @@
 /**
  * CarryBee Order Processing Auto-Flow — Content Script
  *
- * Injects into hive.carrybee.com/order-processing/* pages.
+ * Injects into hive.carrybee.com/order-processing/* and /sub-sort/* (via
+ * manifest). Loads after shared.js (cbResolveResetMinutes / cbTodayResetMs).
+ *
  * Provides 4 automated processing modes:
  *   1. Merchant Order ID — scan → weight → print → sort
  *   2. Customer Phone — scan → confirm → weight → print → sort
@@ -19,13 +21,20 @@
   /** Timing constants (ms) and limits used throughout the extension. */
   const CFG = {
     debounceMs: 200,
-    errorBadgeDebounceMs: 200,
     rowPollIntervalMs: 50,
-    rowPollMaxMs: 1500,
+    rowStableMs: 200,
+    rowPollHardMaxMs: 1000,
     weightInputWaitMs: 2000,
+    weightToastTimeoutMs: 3000,
     printToastTimeoutMs: 12000,
-    sortToastTimeoutMs: 12000,
+    sortPollMs: 500,
+    sortGraceTimeoutMs: 3000,
+    sortDeadlineMs: 20000,
     badgeDisplayMs: 3000,
+    mismatchBadgeMs: 2000,
+    phoneSettleMs: 400,
+    phoneSettleMaxMs: 2000,
+    phoneEnterRememberMs: 1500,
   };
 
   // ============ SETTINGS ============
@@ -33,18 +42,25 @@
   let settings = {
     showMainBadge: true,
     showProgressBadge: true,
-    resetHour: 19,
+    resetAtMinutes: 19 * 60,
+    dailyResetEnabled: true,
+    skipWeight: false,
   };
 
   /** Load user settings from chrome.storage, merging with defaults. */
   async function loadSettings() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       if (!chrome?.storage?.local) return resolve(settings);
       chrome.storage.local.get([SETTINGS_KEY], (res) => {
         if (chrome.runtime.lastError) {
           return resolve(settings);
         }
-        settings = { ...settings, ...(res[SETTINGS_KEY] || {}) };
+        const stored = res[SETTINGS_KEY] || {};
+        settings = { ...settings, ...stored };
+        // Legacy migration: stored resetHour (0-23) → resetAtMinutes
+        if (stored.resetAtMinutes == null && stored.resetHour != null) {
+          settings.resetAtMinutes = stored.resetHour * 60;
+        }
         resolve(settings);
       });
     });
@@ -53,6 +69,8 @@
   // ============ ROBUST SELECTORS ============
   /** Cache for findInputByLabel results. Invalidated on DOM mutations. */
   const inputCache = new Map();
+
+  /** Drop input lookup cache (call after DOM remounts). */
   function clearInputCache() { inputCache.clear(); }
 
   /**
@@ -112,7 +130,7 @@
   let mode = null;
   let state = 'IDLE';
   let debounceTimer = null;
-  let errorBadgeTimer = null;
+  let lastEnterAt = 0;
   let cycleToken = 0;
   let codQuantityCounter = 0;
   let codQuantityTarget = 0;
@@ -188,6 +206,7 @@
    * @param {string} [mode_class] - CSS mode class (info, working, wait-input, success, error, off)
    */
   function setStatus(text, mode_class) {
+    if (!enabled) return;
     if (!settings.showMainBadge) return;
     const el = badge();
     if (badgeOuterEl) badgeOuterEl.style.display = '';
@@ -200,17 +219,16 @@
    * @param {string|null} text - Progress text, or null to hide
    */
   function setCodProgress(text) {
-    if (!settings.showProgressBadge) return;
-    const el = codProgressBadge();
-    const outer = codProgressBadgeOuterEl;
-    if (text) {
-      outer.style.display = 'block';
-      el.textContent = text;
-    } else {
-      outer.style.display = 'none';
+    if (!text || !enabled || !settings.showProgressBadge) {
+      if (codProgressBadgeOuterEl) codProgressBadgeOuterEl.style.display = 'none';
+      return;
     }
+    const el = codProgressBadge();
+    codProgressBadgeOuterEl.style.display = 'block';
+    el.textContent = text;
   }
 
+  /** Show COD quantity input bar and set ready status. */
   function showCodQuantityInput() {
     const input = createCodQuantityInput();
     if (!input) return;
@@ -222,6 +240,7 @@
     setStatus('Ready — COD Quantity', 'info');
   }
 
+  /** Hide COD quantity input bar and clear its value. */
   function hideCodQuantityInput() {
     if (codQuantityInputEl && codQuantityInputEl.parentElement) {
       codQuantityInputEl.parentElement.style.display = 'none';
@@ -307,27 +326,34 @@
   // ============ PER-CYCLE CACHE ============
   let cachedRows = null;
   let cachedBusinessName = null;
+
+  /** Invalidate per-cycle row/business cache (call when DOM/order list changes). */
   function clearCycleCache() { cachedRows = null; cachedBusinessName = null; }
 
+  /** All order rows on the page (cached for the cycle). */
   function getRows() {
     if (cachedRows) return cachedRows;
     cachedRows = Array.from(document.querySelectorAll(SEL.row));
     return cachedRows;
   }
 
+  /** Row's weight edit (pencil) icon. */
   function findWeightIcon(row) {
     return row.querySelector(SEL.weightIcon);
   }
 
+  /** Row's weight number input, if open. */
   function findWeightNumberInput(row) {
     return row.querySelector(SEL.weightInput);
   }
 
+  /** Row action button (print/sort) identified by lucide icon class. */
   function findActionButton(row, iconClass) {
     const icon = row.querySelector(`svg.${iconClass}`);
     return icon ? icon.closest('button') : null;
   }
 
+  /** Consignment ID from row's data-order-id attribute. */
   function getConsignmentIdFromRow(row) {
     return row.getAttribute('data-order-id');
   }
@@ -357,6 +383,7 @@
   const toastTextByNode = new WeakMap();
   let toastDebounceTimer = null;
 
+  /** Append toast text to ring buffer (max 50) and stamp lastToastAt. */
   function recordToast(text) {
     if (!text) return;
     lastToastEvents.push({ text, at: Date.now() });
@@ -365,9 +392,13 @@
   }
 
   // ============ MERGED DOM OBSERVER ============
-  /** Single observer for both toast detection and input remount. */
+  /** Debounce timer for input-remount reattachment. */
   let inputRemountDebounceTimer = null;
 
+  /**
+   * Single MutationObserver for toast detection + input remount.
+   * Listens to childList and characterData (text inside existing toasts).
+   */
   function watchDom() {
     const observer = new MutationObserver((mutations) => {
       let hasToast = false;
@@ -375,7 +406,7 @@
 
       for (const m of mutations) {
         if (hasToast && hasInputCandidate) break;
-        // Text updates inside existing toast nodes (old extension behavior)
+        // Text updates inside existing toast nodes (characterData mutations)
         if (!hasToast && m.type === 'characterData') hasToast = true;
         for (const node of m.addedNodes) {
           if (node.nodeType !== 1) continue;
@@ -397,6 +428,10 @@
     observer.observe(document.body, { childList: true, characterData: true, subtree: true });
   }
 
+  /**
+   * Process all live Sonner toasts: record them, and on sort-complete
+   * either resume auto-flow (enabled + idle-ish) or track a manual sort.
+   */
   function processToasts() {
     const toasts = Array.from(document.querySelectorAll(SEL.toast));
     for (const t of toasts) {
@@ -407,8 +442,8 @@
       recordToast(text);
 
       if (isSortToast(text.toLowerCase())) {
-        // Extension is processing — handle via existing flow
-        if (state !== 'IDLE' && state !== 'PRINTING' && state !== 'SORTING') {
+        // Auto-flow on: resume + refocus input (covers IDLE e.g. after "Multiple parcels found")
+        if (enabled && mode && state !== 'PRINTING' && state !== 'SORTING') {
           handleManualSortCompletion();
         }
         // Track manual sorts (extension OFF or IDLE) via click tracker
@@ -428,6 +463,7 @@
     }
     pendingSortConsignmentId = null;
     state = 'IDLE';
+    refocusCurrentInput();
 
     // Resume auto-flow if input has a value
     const inputConfigs = {
@@ -443,14 +479,17 @@
         return;
       }
     }
-    refocusCurrentInput();
     showIdleStatus();
   }
 
-  function waitForToast(matchFn, timeout) {
-    return waitForToastSince(matchFn, lastToastAt, timeout);
-  }
-
+  /**
+   * Wait for a toast matching matchFn that arrived after sinceMark.
+   *
+   * @param {(lowerText: string) => boolean} matchFn
+   * @param {number} sinceMark - lastToastAt captured BEFORE the action
+   * @param {number} timeout - ms to wait
+   * @returns {Promise<string|null>} toast text or null
+   */
   function waitForToastSince(matchFn, sinceMark, timeout) {
     return waitFor(() => {
       const ev = lastToastEvents.find(
@@ -477,6 +516,7 @@
     });
   }
 
+  /** Persist consignment tracking data to chrome.storage. */
   function setStorageData(data) {
     return new Promise((resolve) => {
       if (!chrome?.storage?.local) return resolve();
@@ -488,18 +528,15 @@
    * Check if daily reset threshold has been crossed (BDT timezone).
    * Clears all business data if current time >= reset hour and data hasn't been reset today.
    */
+  /** Clear today's consignments if past the BDT reset threshold (shared.js math). */
   async function checkDailyReset() {
-    const now = new Date();
-    // Convert to BDT (UTC+6)
-    const bdtNow = new Date(now.getTime() + 6 * 3600000);
-    const todayResetBDT = new Date(bdtNow);
-    todayResetBDT.setHours(settings.resetHour, 0, 0, 0);
-    const todayResetUTC = new Date(todayResetBDT.getTime() - 6 * 3600000);
+    if (settings.dailyResetEnabled === false) return;
+    const resetMs = cbTodayResetMs(cbResolveResetMinutes(settings));
 
     const data = await getStorageData();
-    if (now >= todayResetUTC && data.lastReset < todayResetUTC.getTime()) {
+    if (Date.now() >= resetMs && data.lastReset < resetMs) {
       data.businesses = {};
-      data.lastReset = todayResetUTC.getTime();
+      data.lastReset = resetMs;
       await setStorageData(data);
     }
   }
@@ -517,6 +554,7 @@
       return;
     }
 
+    await checkDailyReset();
     const data = await getStorageData();
     if (!data.businesses[businessName]) data.businesses[businessName] = [];
 
@@ -545,6 +583,7 @@
   /** Flush all batched consignment IDs to storage in one write. */
   async function flushBatchConsignments() {
     if (!pendingBatchConsignments.length) return;
+    await checkDailyReset();
     const batch = pendingBatchConsignments.splice(0);
     const data = await getStorageData();
 
@@ -619,6 +658,7 @@
     if (!container || !input || container.dataset.cbWired) return;
     container.dataset.cbWired = '1';
 
+    /** Validate COD qty input (1–200) and start batch. */
     function processQty() {
       const qty = parseInt(input.value, 10);
       if (isNaN(qty) || qty < 1) {
@@ -651,8 +691,21 @@
   }
 
   // ============ MODE MANAGEMENT ============
+  /** Set processing mode and refresh idle badge. */
   function setMode(newMode) {
     mode = newMode;
+    showIdleStatus();
+  }
+
+  /** User-initiated off (popup toggle / shortcut toggle): stop flows and hide UI. */
+  function userDisable() {
+    enabled = false;
+    cycleToken++;
+    state = 'IDLE';
+    confirmResolve = null;
+    confirmKeydownHandler = null;
+    setCodProgress(null);
+    hideCodQuantityInput();
     showIdleStatus();
   }
 
@@ -704,35 +757,36 @@
     clearCycleCache();
     state = 'WAITING_ROWS';
 
-    if (errorBadgeTimer) clearTimeout(errorBadgeTimer);
-
     try {
-      const result = await waitFor(() => {
-        const rows = getRows();
-        if (rows.length === 1) return rows;
-        return null;
-      }, { interval: CFG.rowPollIntervalMs, timeout: CFG.rowPollMaxMs, signal });
+      // Wait for exactly 1 row — stable-count (React renders rows instantly)
+      let result = null;
+      let stableCount = -1;
+      let stableSince = 0;
+      const start = Date.now();
+      for (;;) {
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        const rowsNow = getRows();
+        if (rowsNow.length === 1) {
+          result = rowsNow;
+          break;
+        }
+        const now = Date.now();
+        if (rowsNow.length !== stableCount) {
+          stableCount = rowsNow.length;
+          stableSince = now;
+        }
+        if (now - stableSince >= CFG.rowStableMs || now - start >= CFG.rowPollHardMaxMs) break;
+        await sleep(CFG.rowPollIntervalMs);
+      }
 
       if (myToken !== cycleToken) return;
-
-      // Clear any pending error badge when result becomes available
-      if (result) {
-        if (errorBadgeTimer) {
-          clearTimeout(errorBadgeTimer);
-          errorBadgeTimer = null;
-        }
-      }
 
       if (!result) {
         const rows = getRows();
         if (rows.length === 0) {
-          setStatus('No match found', 'error');
+          setStatus('No parcel found', 'error');
         } else {
-          errorBadgeTimer = setTimeout(() => {
-            if (myToken === cycleToken) {
-              setStatus('Multiple parcels found', 'error');
-            }
-          }, CFG.errorBadgeDebounceMs);
+          setStatus('Multiple parcels found', 'error');
         }
         await sleep(500);
         if (myToken === cycleToken) {
@@ -741,55 +795,86 @@
         return;
       }
 
-      // Phone mode: wait for user to confirm with Enter
+      // Phone mode (typed only): settle typing, validate digits, confirm with Enter
       if (requireConfirm) {
-        // Validate ending digits match parcel phone
-        if (result) {
-          const row = result[0];
-          const phoneDiv = row.querySelectorAll(':scope > div')[2];
-          const phoneText = (phoneDiv?.textContent || '').trim();
-          const typedDigits = input.value.trim().replace(/\D/g, '');
-
-          if (typedDigits && phoneText && !phoneText.endsWith(typedDigits)) {
-            setStatus('Phone number mismatch', 'error');
-            await sleep(1500);
-            if (myToken === cycleToken) {
-              state = 'IDLE';
-              showIdleStatus();
+        // Settle wait — judge only after typing pauses (no false mismatch mid-type).
+        // Enter during wait (or within phoneEnterRememberMs) counts as confirm intent.
+        let enterPressed = (Date.now() - lastEnterAt) < CFG.phoneEnterRememberMs;
+        const settleKeydown = (e) => {
+          if (e.key === 'Enter') enterPressed = true;
+        };
+        input.addEventListener('keydown', settleKeydown);
+        try {
+          let lastVal = input.value;
+          let stableAt = Date.now();
+          const settleStart = Date.now();
+          while (!enterPressed) {
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+            if (myToken !== cycleToken) return;
+            const v = input.value;
+            if (v !== lastVal) {
+              lastVal = v;
+              stableAt = Date.now();
             }
-            return;
+            if (Date.now() - stableAt >= CFG.phoneSettleMs ||
+                Date.now() - settleStart >= CFG.phoneSettleMaxMs) break;
+            await sleep(100);
           }
+        } finally {
+          input.removeEventListener('keydown', settleKeydown);
         }
 
-        state = 'PHONE_CONFIRM';
-        setStatus('Row found — press Enter to confirm', 'wait-input');
-
-        await new Promise((resolve, reject) => {
-          const onAbort = () => {
-            input.removeEventListener('keydown', onKeydown);
-            reject(new DOMException('Aborted', 'AbortError'));
-          };
-          signal.addEventListener('abort', onAbort, { once: true });
-
-          function onKeydown(e) {
-            if (e.key === 'Enter') {
-              signal.removeEventListener('abort', onAbort);
-              input.removeEventListener('keydown', onKeydown);
-              confirmKeydownHandler = null;
-              confirmResolve = null;
-              resolve();
-            }
-          }
-          confirmResolve = resolve;
-          confirmKeydownHandler = onKeydown;
-          input.addEventListener('keydown', onKeydown);
-        });
-
         if (myToken !== cycleToken) return;
+
+        // Validate ending digits match parcel phone (typed value, after settle)
+        const row = result[0];
+        const phoneDiv = row.querySelectorAll(':scope > div')[2];
+        const phoneText = (phoneDiv?.textContent || '').trim();
+        const typedDigits = input.value.trim().replace(/\D/g, '');
+
+        if (typedDigits && phoneText && !phoneText.endsWith(typedDigits)) {
+          setStatus('Phone number mismatch', 'error');
+          await sleep(CFG.mismatchBadgeMs);
+          if (myToken === cycleToken) {
+            state = 'IDLE';
+            showIdleStatus();
+          }
+          return;
+        }
+
+        // Enter already given (during/just before settle) + match → skip confirm pause
+        if (!enterPressed) {
+          state = 'PHONE_CONFIRM';
+          setStatus('Parcel found — press Enter', 'wait-input');
+
+          await new Promise((resolve, reject) => {
+            const onAbort = () => {
+              input.removeEventListener('keydown', confirmEnterHandler);
+              reject(new DOMException('Aborted', 'AbortError'));
+            };
+            signal.addEventListener('abort', onAbort, { once: true });
+
+            /** Enter key = confirm selected phone row. */
+            function confirmEnterHandler(e) {
+              if (e.key === 'Enter') {
+                signal.removeEventListener('abort', onAbort);
+                input.removeEventListener('keydown', confirmEnterHandler);
+                confirmKeydownHandler = null;
+                confirmResolve = null;
+                resolve();
+              }
+            }
+            confirmResolve = resolve;
+            confirmKeydownHandler = confirmEnterHandler;
+            input.addEventListener('keydown', confirmEnterHandler);
+          });
+
+          if (myToken !== cycleToken) return;
+        }
       }
 
       currentBusinessName = getBusinessName();
-      await runFullCycle(result[0], myToken, true);
+      await runFullCycle(result[0], myToken, !settings.skipWeight);
     } catch (e) {
       if (e.name !== 'AbortError') console.error('[CarryBee]', e);
     }
@@ -798,8 +883,12 @@
   // ============ REFOCUS HELPER ============
 
   /** Refocus and select the current mode's input field. */
+  /**
+   * Focus + select the current mode's input field.
+   * @returns {boolean} true if input found and focused
+   */
   function refocusCurrentInput() {
-    if (!mode) return;
+    if (!mode) return false;
     let input;
     if (mode === 'merchant') input = SEL.merchantOrderInput();
     else if (mode === 'phone') input = SEL.phoneInput();
@@ -809,7 +898,9 @@
     if (input) {
       input.focus();
       input.select();
+      return true;
     }
+    return false;
   }
 
   // ============ RESET STATE ============
@@ -839,10 +930,6 @@
       const r = confirmResolve;
       confirmResolve = null;
       r();
-    }
-    if (errorBadgeTimer) {
-      clearTimeout(errorBadgeTimer);
-      errorBadgeTimer = null;
     }
     if (state !== 'IDLE') {
       cycleToken++;
@@ -897,7 +984,7 @@
         if (!first) return null;
         if (!findActionButton(first, 'lucide-printer')) return null;
         return first;
-      }, { interval: 200, timeout: 3000 });
+      }, { interval: 200, timeout: 1000 });
 
       if (myToken !== cycleToken) return;
 
@@ -941,9 +1028,11 @@
         return;
       }
 
-      // Wait for row to disappear
-      await waitFor(() => !document.body.contains(row), { timeout: 2000 });
-      if (myToken !== cycleToken) return;
+      // Wait for row to disappear (skip if stuck/unverified — row may stay)
+      if (!result.unverified) {
+        await waitFor(() => !document.body.contains(row), { timeout: 2000 });
+        if (myToken !== cycleToken) return;
+      }
 
       // Store consignment ID after successful sort (batched)
       if (consignmentId) {
@@ -1004,27 +1093,36 @@
     setStatus('Sorting...', 'working');
     sortBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-    // Poll for sort completion: toast OR loading state (max 60s)
-    const DEADLINE = Date.now() + 60000;
+    // Poll for sort completion: toast OR row removed (deadline in CFG)
+    const DEADLINE = Date.now() + CFG.sortDeadlineMs;
     let sortToast = null;
+    let rowRemoved = false;
     while (!sortToast && Date.now() < DEADLINE) {
       if (myToken !== cycleToken) return { ok: false, reason: 'stopped' };
-      sortToast = await waitForToastSince(isSortToast, sortSinceMark, 500);
+      sortToast = await waitForToastSince(isSortToast, sortSinceMark, CFG.sortPollMs);
       if (sortToast) break;
+      // Row removed from DOM = sorted (even without toast)
+      if (!document.body.contains(row)) {
+        rowRemoved = true;
+        break;
+      }
       // Sort button replaced by spinner = still loading, keep waiting
-      const stillLoading = !findActionButton(row, 'lucide-arrow-down-wide-narrow') && document.body.contains(row);
+      const stillLoading = !findActionButton(row, 'lucide-arrow-down-wide-narrow');
       if (!stillLoading) break;
     }
 
-    // Row disappeared but toast may arrive shortly after — give one more chance
+    if (rowRemoved) return { ok: true };
+
+    // Row still present — grace wait for toast
     if (!sortToast) {
-      sortToast = await waitForToastSince(isSortToast, sortSinceMark, 3000);
+      sortToast = await waitForToastSince(isSortToast, sortSinceMark, CFG.sortGraceTimeoutMs);
     }
 
     if (!sortToast) {
+      // Stuck loading — show badge, but caller tracks consignment as sorted
       setStatus('Sort failed', 'error');
       await sleep(1000);
-      return { ok: false, reason: 'sort-failed' };
+      return { ok: true, unverified: true };
     }
 
     return { ok: true };
@@ -1082,19 +1180,20 @@
       // Wait for Enter — with AbortController support
       await new Promise((resolve, reject) => {
         const onAbort = () => {
-          weightInput.removeEventListener('keydown', onKeydown);
+          weightInput.removeEventListener('keydown', weightEnterHandler);
           reject(new DOMException('Aborted', 'AbortError'));
         };
         currentAbortController?.signal?.addEventListener('abort', onAbort, { once: true });
 
-        function onKeydown(e) {
+        /** Enter key = submit weight value. */
+        function weightEnterHandler(e) {
           if (e.key === 'Enter') {
             currentAbortController?.signal?.removeEventListener('abort', onAbort);
-            weightInput.removeEventListener('keydown', onKeydown);
+            weightInput.removeEventListener('keydown', weightEnterHandler);
             resolve();
           }
         }
-        weightInput.addEventListener('keydown', onKeydown);
+        weightInput.addEventListener('keydown', weightEnterHandler);
       });
       if (myToken !== cycleToken) return;
 
@@ -1102,7 +1201,7 @@
       const weightWasChanged = finalWeightValue !== originalWeightValue;
 
       if (weightWasChanged) {
-        const weightToast = await waitForToastSince(isWeightToast, weightSinceMark, 3000);
+        const weightToast = await waitForToastSince(isWeightToast, weightSinceMark, CFG.weightToastTimeoutMs);
         if (myToken !== cycleToken) return;
         if (!weightToast) {
           setStatus('Weight update failed', 'error');
@@ -1127,6 +1226,13 @@
       await addConsignmentId(consignmentId, currentBusinessName, false);
     }
     if (myToken !== cycleToken) return;
+
+    if (result.unverified) {
+      // "Sort failed" badge already shown — tracked as sorted, keep badge visible
+      state = 'IDLE';
+      refocusCurrentInput();
+      return;
+    }
 
     setStatus('✓ Done', 'success');
     state = 'IDLE';
@@ -1159,7 +1265,10 @@
           debounceTimer = setTimeout(handler, CFG.debounceMs);
         });
         input.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') e.preventDefault();
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            lastEnterAt = Date.now();
+          }
         });
 
         // Wire the gray X icon that clears the input
@@ -1178,34 +1287,37 @@
 
   // ============ KEYBOARD SHORTCUTS ============
 
-  /** Handle commands from background.js (keyboard shortcuts). */
+  /** Manifest command name → mode. */
+  const COMMAND_TO_MODE = {
+    'set-consignment-mode': 'consignment',
+    'set-phone-mode': 'phone',
+    'set-merchant-mode': 'merchant',
+    'set-cod-mode': 'cod',
+  };
+
+  /**
+   * Handle commands from background.js (keyboard shortcuts).
+   * Toggle semantics: pressing the ACTIVE mode's shortcut turns the extension OFF;
+   * any other shortcut switches mode (or turns ON if off).
+   */
   function handleCommand(command) {
-    switch (command) {
-      case 'set-consignment-mode':
-        enabled = true;
-        setMode('consignment');
-        refocusCurrentInput();
-        break;
+    if (!isProcessingPage()) return;
+    const target = COMMAND_TO_MODE[command];
+    if (!target) return;
 
-      case 'set-phone-mode':
-        enabled = true;
-        setMode('phone');
-        refocusCurrentInput();
-        break;
+    if (enabled && mode === target) {
+      userDisable();
+      return;
+    }
 
-      case 'set-merchant-mode':
-        enabled = true;
-        setMode('merchant');
-        refocusCurrentInput();
-        break;
-
-      case 'set-cod-mode':
-        enabled = true;
-        setMode('cod');
-        showCodQuantityInput();
-        const codInput = SEL.codInput();
-        if (codInput) codInput.focus();
-        break;
+    enabled = true;
+    setMode(target);
+    if (target === 'cod') {
+      showCodQuantityInput();
+      const codInput = SEL.codInput();
+      if (codInput) codInput.focus();
+    } else {
+      refocusCurrentInput();
     }
   }
 
@@ -1223,15 +1335,13 @@
         const next = !!msg.enabled;
         const newMode = msg.mode || null;
 
+        if (next && !isProcessingPage()) {
+          sendResponse({ enabled: false, mode: null });
+          return;
+        }
+
         if (!next) {
-          enabled = false;
-          cycleToken++;
-          state = 'IDLE';
-          confirmResolve = null;
-          confirmKeydownHandler = null;
-          setCodProgress(null);
-          hideCodQuantityInput();
-          showIdleStatus();
+          userDisable();
         } else if (next && newMode) {
           enabled = true;
           setMode(newMode);
@@ -1275,11 +1385,14 @@
 
   // ============ URL-BASED AUTO-DISABLE (SPA NAVIGATION) ============
 
+  /** True only on exact order-processing / sub-sort path segments (no query/hash false positives). */
   function isProcessingPage() {
-    const url = location.href;
-    return url.includes('/order-processing') || url.includes('/sub-sort');
+    const p = location.pathname;
+    return p === '/order-processing' || p.startsWith('/order-processing/') ||
+           p === '/sub-sort' || p.startsWith('/sub-sort/');
   }
 
+  /** Turn extension off: bump cycle token, abort flows, hide badges. */
   function disableExtension() {
     enabled = false;
     mode = null;
@@ -1299,6 +1412,7 @@
     hideBadge();
   }
 
+  /** React to SPA navigation: show idle status on processing page, else disable. */
   function onUrlChange() {
     if (isProcessingPage()) {
       showIdleStatus();
@@ -1348,9 +1462,12 @@
     }, true);
   }
 
+  /** Bootstrap: settings → URL watcher → observers → listeners. */
   async function init() {
     try {
       await loadSettings();
+      wireUrlWatcher();
+      onUrlChange();
       await checkDailyReset();
 
       watchDom();
@@ -1358,8 +1475,6 @@
       wireRuntimeMessages();
       wireSettingsListener();
       wireSortButtonTracker();
-      wireUrlWatcher();
-      onUrlChange();
 
       // Signal ready to popup
       chrome.runtime.sendMessage({ type: 'CB_CONTENT_READY', url: location.href }).catch(() => {});
