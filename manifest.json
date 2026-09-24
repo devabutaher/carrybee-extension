@@ -19,7 +19,7 @@
   "content_scripts": [
     {
       "matches": ["*://hive.carrybee.com/order-processing/*", "*://hive.carrybee.com/sub-sort/*"],
-      "js": ["content.js"],
+      "js": ["shared.js", "content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
     }

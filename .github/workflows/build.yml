@@ -21,6 +21,7 @@ jobs:
           cp popup.html popup.css popup.js dist/
           cp content.js content.css dist/
           cp background.js dist/
+          cp shared.js dist/
           cp options.html options.css options.js dist/
           cp -r icons dist/
 
