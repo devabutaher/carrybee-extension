@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Mode } from '~/types';
 import { escapeHtml } from '~/utils/helpers';
+import { clearConsignmentsByBusiness } from '~/utils/storage';
 
 type ExtensionState = {
   enabled: boolean;
@@ -110,8 +111,16 @@ export default function App() {
     []
   );
 
-  // Init: handshake with content script
+  // Init: tracking loads on any page; state handshake only on processing pages
   useEffect(() => {
+    chrome.runtime.sendMessage(
+      { type: 'CB_CHECK_DAILY_RESET' },
+      () => {
+        void chrome.runtime.lastError;
+        loadConsignments();
+      }
+    );
+
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs?.[0];
       if (!tab?.id) {
@@ -144,12 +153,6 @@ export default function App() {
             enabled: !!response.enabled,
             mode: response.mode,
           });
-          chrome.runtime.sendMessage(
-            { type: 'CB_CHECK_DAILY_RESET' },
-            () => {
-              loadConsignments();
-            }
-          );
         }
       );
     });
@@ -255,6 +258,11 @@ export default function App() {
     ? allConsignments[currentMerchant].length
     : 0;
 
+  const totalCount = Object.values(allConsignments).reduce(
+    (s, arr) => s + (arr?.length || 0),
+    0
+  );
+
   const consignmentList = currentMerchant
     ? allConsignments[currentMerchant]
     : [];
@@ -277,25 +285,16 @@ export default function App() {
   };
 
   // Clear
-  const handleClear = () => {
+  const handleClear = async () => {
     if (!currentMerchant) return;
     const confirmed = window.confirm(
       `Clear all ${allConsignments[currentMerchant].length} consignments for ${currentMerchant}? This cannot be undone.`
     );
     if (!confirmed) return;
 
-    chrome.storage.local.get(['cbConsignments_v2'], (res) => {
-      const data = res.cbConsignments_v2 || {
-        version: 2,
-        lastReset: 0,
-        businesses: {},
-      };
-      delete data.businesses[currentMerchant];
-      chrome.storage.local.set({ cbConsignments_v2: data }, () => {
-        setSelectedMerchant('');
-        loadConsignments();
-      });
-    });
+    await clearConsignmentsByBusiness(currentMerchant);
+    setSelectedMerchant('');
+    loadConsignments();
   };
 
   const statusText = extensionState.enabled
@@ -376,8 +375,19 @@ export default function App() {
         <section className="tracking-section">
           <div className="tracking-header">
             <span className="tracking-label">Sorted Consignments</span>
-            <span className="sorted-count">
-              {sortedCount > 0 ? sortedCount : '—'}
+            <span className="tracking-counts">
+              <span
+                className="total-count"
+                title="Total sorted — all businesses"
+              >
+                Total <b>{totalCount}</b>
+              </span>
+              <span
+                className="sorted-count"
+                title="Selected business count"
+              >
+                {sortedCount > 0 ? sortedCount : '—'}
+              </span>
             </span>
           </div>
 

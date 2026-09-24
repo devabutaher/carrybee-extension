@@ -266,6 +266,24 @@ body {
   letter-spacing: 0.08em;
 }
 
+.tracking-counts {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.total-count {
+  font: 500 11px/1 var(--font-family-base);
+  color: var(--cb-gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.total-count b {
+  font: 700 14px/1 var(--font-family-base);
+  color: var(--cb-green);
+}
+
 .sorted-count {
   font: 700 14px/1 var(--font-family-base);
   color: var(--cb-gray-900);
