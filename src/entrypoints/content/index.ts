@@ -83,13 +83,20 @@ export default defineContentScript({
 
     const CFG = {
       debounceMs: 200,
-      errorBadgeDebounceMs: 200,
       rowPollIntervalMs: 50,
-      rowPollMaxMs: 1500,
+      rowStableMs: 200,
+      rowPollHardMaxMs: 1000,
       weightInputWaitMs: 2000,
+      weightToastTimeoutMs: 3000,
       printToastTimeoutMs: 12000,
-      sortToastTimeoutMs: 12000,
+      sortPollMs: 500,
+      sortGraceTimeoutMs: 3000,
+      sortDeadlineMs: 20000,
       badgeDisplayMs: 3000,
+      mismatchBadgeMs: 2000,
+      phoneSettleMs: 400,
+      phoneSettleMaxMs: 2000,
+      phoneEnterRememberMs: 1500,
     };
 
     // ============ STATE ============
@@ -99,7 +106,6 @@ export default defineContentScript({
     let state: AutomationState = "IDLE";
     let settings: Settings = DEFAULT_SETTINGS;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    let errorBadgeTimer: ReturnType<typeof setTimeout> | null = null;
     let cycleToken = 0;
     let codQuantityCounter = 0;
     let codQuantityTarget = 0;
@@ -111,6 +117,7 @@ export default defineContentScript({
     let currentAbortController: AbortController | null = null;
     let pendingSortConsignmentId: string | null = null;
     let lastClickedRowId: string | null = null;
+    let lastEnterAt = 0;
 
     // ============ BADGE ELEMENTS ============
 
@@ -177,6 +184,7 @@ export default defineContentScript({
     }
 
     function setStatus(text: string, modeClass?: string): void {
+      if (!enabled) return;
       if (!settings.showMainBadge) return;
       const el = badge();
       if (badgeOuterEl) badgeOuterEl.style.display = "";
@@ -185,16 +193,16 @@ export default defineContentScript({
     }
 
     function setCodProgress(text: string | null): void {
-      if (!settings.showProgressBadge) return;
+      if (!text || !enabled || !settings.showProgressBadge) {
+        if (codProgressBadgeOuterEl)
+          codProgressBadgeOuterEl.style.display = "none";
+        return;
+      }
       const el = codProgressBadge();
       const outer = codProgressBadgeOuterEl;
       if (!outer) return;
-      if (text) {
-        outer.style.display = "block";
-        el.textContent = text;
-      } else {
-        outer.style.display = "none";
-      }
+      outer.style.display = "block";
+      el.textContent = text;
     }
 
     function showCodQuantityInput(): void {
@@ -310,13 +318,6 @@ export default defineContentScript({
 
       refocusCurrentInput();
       showIdleStatus();
-    }
-
-    function waitForToast(
-      matchFn: (text: string) => boolean,
-      timeout: number,
-    ): Promise<string | null> {
-      return waitForToastSince(matchFn, lastToastAt, timeout);
     }
 
     function waitForToastSince(
@@ -513,6 +514,18 @@ export default defineContentScript({
       showIdleStatus();
     }
 
+    /** User-initiated off (popup toggle / shortcut toggle): stop flows and hide UI. */
+    function userDisable(): void {
+      enabled = false;
+      cycleToken++;
+      state = "IDLE";
+      confirmResolve = null;
+      confirmKeydownHandler = null;
+      setCodProgress(null);
+      hideCodQuantityInput();
+      showIdleStatus();
+    }
+
     // ============ ABORT CONTROLLER ============
 
     function createAbortController(): AbortSignal {
@@ -579,10 +592,6 @@ export default defineContentScript({
         confirmResolve = null;
         r();
       }
-      if (errorBadgeTimer) {
-        clearTimeout(errorBadgeTimer);
-        errorBadgeTimer = null;
-      }
       if (state !== "IDLE") {
         cycleToken++;
         state = "IDLE";
@@ -623,27 +632,47 @@ export default defineContentScript({
       setStatus("Sorting...", "working");
       sortBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-      const DEADLINE = Date.now() + 60000;
+      // Poll for sort completion: toast OR row removed (deadline in CFG)
+      const DEADLINE = Date.now() + CFG.sortDeadlineMs;
       let sortToast: string | null = null;
+      let rowRemoved = false;
       while (!sortToast && Date.now() < DEADLINE) {
         if (myToken !== cycleToken) return { ok: false, reason: "stopped" };
-        sortToast = await waitForToastSince(isSortToast, sortSinceMark, 500);
+        sortToast = await waitForToastSince(
+          isSortToast,
+          sortSinceMark,
+          CFG.sortPollMs,
+        );
         if (sortToast) break;
-        const stillLoading =
-          !findActionButton(row, "lucide-arrow-down-wide-narrow") &&
-          document.body.contains(row);
+        // Row removed from DOM = sorted (even without toast)
+        if (!document.body.contains(row)) {
+          rowRemoved = true;
+          break;
+        }
+        // Sort button replaced by spinner = still loading, keep waiting
+        const stillLoading = !findActionButton(
+          row,
+          "lucide-arrow-down-wide-narrow",
+        );
         if (!stillLoading) break;
       }
 
-      // Row disappeared but toast may arrive shortly after — give one more chance
+      if (rowRemoved) return { ok: true };
+
+      // Row still present — grace wait for toast
       if (!sortToast) {
-        sortToast = await waitForToastSince(isSortToast, sortSinceMark, 3000);
+        sortToast = await waitForToastSince(
+          isSortToast,
+          sortSinceMark,
+          CFG.sortGraceTimeoutMs,
+        );
       }
 
       if (!sortToast) {
+        // Stuck loading — show badge, but caller tracks consignment as sorted
         setStatus("Sort failed", "error");
         await sleep(1000);
-        return { ok: false, reason: "sort-failed" };
+        return { ok: true, unverified: true };
       }
 
       return { ok: true };
@@ -722,7 +751,7 @@ export default defineContentScript({
           const weightToast = await waitForToastSince(
             isWeightToast,
             weightSinceMark,
-            3000,
+            CFG.weightToastTimeoutMs,
           );
           if (myToken !== cycleToken) return;
           if (!weightToast) {
@@ -746,6 +775,13 @@ export default defineContentScript({
         await addConsignmentId(consignmentId, currentBusinessName!, false);
       }
       if (myToken !== cycleToken) return;
+
+      if (result.unverified) {
+        // "Sort failed" badge already shown — tracked as sorted, keep badge visible
+        state = "IDLE";
+        refocusCurrentInput();
+        return;
+      }
 
       setStatus("✓ Done", "success");
       state = "IDLE";
@@ -771,41 +807,40 @@ export default defineContentScript({
       clearCycleCache();
       state = "WAITING_ROWS";
 
-      if (errorBadgeTimer) clearTimeout(errorBadgeTimer);
-
       try {
-        const result = await waitFor(
-          () => {
-            const rows = getRowsCached();
-            if (rows.length === 1) return rows;
-            return null;
-          },
-          {
-            interval: CFG.rowPollIntervalMs,
-            timeout: CFG.rowPollMaxMs,
-            signal,
-          },
-        );
+        // Wait for exactly 1 row — stable-count (React renders rows instantly)
+        let result: Element[] | null = null;
+        let stableCount = -1;
+        let stableSince = 0;
+        const start = Date.now();
+        for (;;) {
+          if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+          const rowsNow = getRowsCached();
+          if (rowsNow.length === 1) {
+            result = rowsNow;
+            break;
+          }
+          const now = Date.now();
+          if (rowsNow.length !== stableCount) {
+            stableCount = rowsNow.length;
+            stableSince = now;
+          }
+          if (
+            now - stableSince >= CFG.rowStableMs ||
+            now - start >= CFG.rowPollHardMaxMs
+          )
+            break;
+          await sleep(CFG.rowPollIntervalMs);
+        }
 
         if (myToken !== cycleToken) return;
-
-        if (result) {
-          if (errorBadgeTimer) {
-            clearTimeout(errorBadgeTimer);
-            errorBadgeTimer = null;
-          }
-        }
 
         if (!result) {
           const rows = getRowsCached();
           if (rows.length === 0) {
-            setStatus("No match found", "error");
+            setStatus("No parcel found", "error");
           } else {
-            errorBadgeTimer = setTimeout(() => {
-              if (myToken === cycleToken) {
-                setStatus("Multiple parcels found", "error");
-              }
-            }, CFG.errorBadgeDebounceMs);
+            setStatus("Multiple parcels found", "error");
           }
           await sleep(500);
           if (myToken === cycleToken) {
@@ -814,50 +849,86 @@ export default defineContentScript({
           return;
         }
 
+        // Phone mode (typed only): settle typing, validate digits, confirm with Enter
         if (requireConfirm) {
-          // Validate ending digits match parcel phone
-          if (result) {
-            const row = result[0];
-            const phoneDiv = row.querySelectorAll(":scope > div")[2];
-            const phoneText = (phoneDiv?.textContent || "").trim();
-            const typedDigits = input.value.trim().replace(/\D/g, "");
-
-            if (typedDigits && phoneText && !phoneText.endsWith(typedDigits)) {
-              setStatus("Phone number mismatch", "error");
-              await sleep(1500);
-              if (myToken === cycleToken) {
-                state = "IDLE";
-                showIdleStatus();
+          // Settle wait — judge only after typing pauses (no false mismatch mid-type).
+          // Enter during wait (or within phoneEnterRememberMs) counts as confirm intent.
+          let enterPressed = Date.now() - lastEnterAt < CFG.phoneEnterRememberMs;
+          const settleKeydown = (e: KeyboardEvent) => {
+            if (e.key === "Enter") enterPressed = true;
+          };
+          input.addEventListener("keydown", settleKeydown);
+          try {
+            let lastVal = input.value;
+            let stableAt = Date.now();
+            const settleStart = Date.now();
+            while (!enterPressed) {
+              if (signal.aborted)
+                throw new DOMException("Aborted", "AbortError");
+              if (myToken !== cycleToken) return;
+              const v = input.value;
+              if (v !== lastVal) {
+                lastVal = v;
+                stableAt = Date.now();
               }
-              return;
+              if (
+                Date.now() - stableAt >= CFG.phoneSettleMs ||
+                Date.now() - settleStart >= CFG.phoneSettleMaxMs
+              )
+                break;
+              await sleep(100);
             }
+          } finally {
+            input.removeEventListener("keydown", settleKeydown);
           }
 
-          state = "PHONE_CONFIRM";
-          setStatus("Row found — press Enter to confirm", "wait-input");
-
-          await new Promise<void>((resolve, reject) => {
-            const onAbort = () => {
-              input.removeEventListener("keydown", onKeydown);
-              reject(new DOMException("Aborted", "AbortError"));
-            };
-            signal.addEventListener("abort", onAbort, { once: true });
-
-            function onKeydown(e: KeyboardEvent) {
-              if (e.key === "Enter") {
-                signal.removeEventListener("abort", onAbort);
-                input!.removeEventListener("keydown", onKeydown);
-                confirmKeydownHandler = null;
-                confirmResolve = null;
-                resolve();
-              }
-            }
-            confirmResolve = resolve;
-            confirmKeydownHandler = onKeydown;
-            input.addEventListener("keydown", onKeydown);
-          });
-
           if (myToken !== cycleToken) return;
+
+          // Validate ending digits match parcel phone (typed value, after settle)
+          const row = result[0];
+          const phoneDiv = row.querySelectorAll(":scope > div")[2];
+          const phoneText = (phoneDiv?.textContent || "").trim();
+          const typedDigits = input.value.trim().replace(/\D/g, "");
+
+          if (typedDigits && phoneText && !phoneText.endsWith(typedDigits)) {
+            setStatus("Phone number mismatch", "error");
+            await sleep(CFG.mismatchBadgeMs);
+            if (myToken === cycleToken) {
+              state = "IDLE";
+              showIdleStatus();
+            }
+            return;
+          }
+
+          // Enter already given (during/just before settle) + match → skip confirm pause
+          if (!enterPressed) {
+            state = "PHONE_CONFIRM";
+            setStatus("Parcel found — press Enter", "wait-input");
+
+            await new Promise<void>((resolve, reject) => {
+              const onAbort = () => {
+                input.removeEventListener("keydown", confirmEnterHandler);
+                reject(new DOMException("Aborted", "AbortError"));
+              };
+              signal.addEventListener("abort", onAbort, { once: true });
+
+              /** Enter key = confirm selected phone row. */
+              function confirmEnterHandler(e: KeyboardEvent) {
+                if (e.key === "Enter") {
+                  signal.removeEventListener("abort", onAbort);
+                  input!.removeEventListener("keydown", confirmEnterHandler);
+                  confirmKeydownHandler = null;
+                  confirmResolve = null;
+                  resolve();
+                }
+              }
+              confirmResolve = resolve;
+              confirmKeydownHandler = confirmEnterHandler;
+              input.addEventListener("keydown", confirmEnterHandler);
+            });
+
+            if (myToken !== cycleToken) return;
+          }
         }
 
         currentBusinessName = getBusinessName();
@@ -914,7 +985,7 @@ export default defineContentScript({
             if (!findActionButton(first, "lucide-printer")) return null;
             return first;
           },
-          { interval: 200, timeout: 3000 },
+          { interval: 200, timeout: 1000 },
         );
 
         if (myToken !== cycleToken) return;
@@ -960,8 +1031,11 @@ export default defineContentScript({
           return;
         }
 
-        await waitFor(() => !document.body.contains(row), { timeout: 2000 });
-        if (myToken !== cycleToken) return;
+        // Wait for row to disappear (skip if stuck/unverified — row may stay)
+        if (!result.unverified) {
+          await waitFor(() => !document.body.contains(row), { timeout: 2000 });
+          if (myToken !== cycleToken) return;
+        }
 
         if (consignmentId) {
           await addConsignmentId(consignmentId, currentBusinessName!, true);
@@ -1014,7 +1088,10 @@ export default defineContentScript({
             debounceTimer = setTimeout(handler, CFG.debounceMs);
           });
           input.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") e.preventDefault();
+            if (e.key === "Enter") {
+              e.preventDefault();
+              lastEnterAt = Date.now();
+            }
           });
 
           const clearIcon = input.parentElement?.querySelector("svg.lucide-x");
@@ -1032,30 +1109,37 @@ export default defineContentScript({
 
     // ============ KEYBOARD SHORTCUTS ============
 
+    /** Manifest command name → mode. */
+    const COMMAND_TO_MODE: Record<string, Mode> = {
+      "set-consignment-mode": "consignment",
+      "set-phone-mode": "phone",
+      "set-merchant-mode": "merchant",
+      "set-cod-mode": "cod",
+    };
+
+    /**
+     * Handle commands from background (keyboard shortcuts).
+     * Toggle semantics: pressing the ACTIVE mode's shortcut turns the extension OFF;
+     * any other shortcut switches mode (or turns ON if off).
+     */
     function handleCommand(command: string): void {
-      switch (command) {
-        case "set-consignment-mode":
-          enabled = true;
-          setMode("consignment");
-          refocusCurrentInput();
-          break;
-        case "set-phone-mode":
-          enabled = true;
-          setMode("phone");
-          refocusCurrentInput();
-          break;
-        case "set-merchant-mode":
-          enabled = true;
-          setMode("merchant");
-          refocusCurrentInput();
-          break;
-        case "set-cod-mode":
-          enabled = true;
-          setMode("cod");
-          showCodQuantityInput();
-          const codInput = SEL.codInput();
-          if (codInput) codInput.focus();
-          break;
+      if (!isProcessingPage()) return;
+      const target = COMMAND_TO_MODE[command];
+      if (!target) return;
+
+      if (enabled && mode === target) {
+        userDisable();
+        return;
+      }
+
+      enabled = true;
+      setMode(target);
+      if (target === "cod") {
+        showCodQuantityInput();
+        const codInput = SEL.codInput();
+        if (codInput) codInput.focus();
+      } else {
+        refocusCurrentInput();
       }
     }
 
@@ -1072,15 +1156,13 @@ export default defineContentScript({
           const next = !!msg.enabled;
           const newMode = msg.mode || null;
 
+          if (next && !isProcessingPage()) {
+            sendResponse({ enabled: false, mode: null });
+            return;
+          }
+
           if (!next) {
-            enabled = false;
-            cycleToken++;
-            state = "IDLE";
-            confirmResolve = null;
-            confirmKeydownHandler = null;
-            setCodProgress(null);
-            hideCodQuantityInput();
-            showIdleStatus();
+            userDisable();
           } else if (next && newMode) {
             enabled = true;
             setMode(newMode);
@@ -1124,9 +1206,15 @@ export default defineContentScript({
 
     // ============ URL-BASED AUTO-DISABLE (SPA NAVIGATION) ============
 
+    /** True only on exact order-processing / sub-sort path segments (no query/hash false positives). */
     function isProcessingPage(): boolean {
-      const url = location.href;
-      return url.includes("/order-processing") || url.includes("/sub-sort");
+      const p = location.pathname;
+      return (
+        p === "/order-processing" ||
+        p.startsWith("/order-processing/") ||
+        p === "/sub-sort" ||
+        p.startsWith("/sub-sort/")
+      );
     }
 
     function disableExtension(): void {
@@ -1206,13 +1294,14 @@ export default defineContentScript({
         settings = await getSettingsFromBackground();
         await checkDailyResetFromBackground();
 
+        wireUrlWatcher();
+        onUrlChange();
+
         watchDom();
         attachInputListeners();
         wireRuntimeMessages();
         wireSettingsListener();
         wireSortButtonTracker();
-        wireUrlWatcher();
-        onUrlChange();
 
         chrome.runtime
           .sendMessage({ type: "CB_CONTENT_READY", url: location.href })

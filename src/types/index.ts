@@ -51,6 +51,7 @@ export const DEFAULT_CONSIGNMENT_DATA: ConsignmentData = {
 export interface PrintThenSortResult {
   ok: boolean;
   reason?: string;
+  unverified?: boolean;
 }
 
 export interface RuntimeMessage {
