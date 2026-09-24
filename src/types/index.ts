@@ -13,7 +13,9 @@ export type AutomationState =
 export interface Settings {
   showMainBadge: boolean;
   showProgressBadge: boolean;
-  resetHour: number;
+  resetAtMinutes: number;
+  dailyResetEnabled: boolean;
+  skipWeight: boolean;
 }
 
 export interface ConsignmentRecord {
@@ -39,7 +41,9 @@ export interface BadgeMode {
 export const DEFAULT_SETTINGS: Settings = {
   showMainBadge: true,
   showProgressBadge: true,
-  resetHour: 19,
+  resetAtMinutes: 19 * 60,
+  dailyResetEnabled: true,
+  skipWeight: false,
 };
 
 export const DEFAULT_CONSIGNMENT_DATA: ConsignmentData = {

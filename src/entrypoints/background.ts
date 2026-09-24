@@ -37,7 +37,7 @@ export default defineBackground(() => {
     });
   });
 
-  // ============ DAILY RESET (7 PM BDT) ============
+  // ============ DAILY RESET (BDT, resetAtMinutes from settings) ============
 
   // Alarm: check every hour
   browser.alarms.create('dailyReset', { periodInMinutes: 60 });

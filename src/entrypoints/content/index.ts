@@ -932,7 +932,7 @@ export default defineContentScript({
         }
 
         currentBusinessName = getBusinessName();
-        await runFullCycle(result[0], myToken, true);
+        await runFullCycle(result[0], myToken, !settings.skipWeight);
       } catch (e) {
         if ((e as Error).name !== "AbortError") console.error("[CarryBee]", e);
       }

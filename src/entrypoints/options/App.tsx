@@ -3,6 +3,9 @@ import { getSettings, saveSettings, clearAllConsignments } from '~/utils/storage
 import type { Settings } from '~/types';
 import { DEFAULT_SETTINGS } from '~/types';
 
+const HOUR_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1);
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => i);
+
 export default function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [savedIndicator, setSavedIndicator] = useState(false);
@@ -30,6 +33,25 @@ export default function App() {
     if (!confirmed) return;
     await clearAllConsignments();
     window.alert('All data cleared.');
+  };
+
+  // 12h picker state derived from settings.resetAtMinutes
+  const total = settings.resetAtMinutes ?? 19 * 60;
+  const h24 = Math.floor(total / 60) % 24;
+  const minute = total % 60;
+  const h12 = ((h24 + 11) % 12) + 1;
+  const isPm = h24 >= 12;
+
+  const handleTimeChange = (partial: {
+    h12?: number;
+    minute?: number;
+    pm?: boolean;
+  }) => {
+    const nextH12 = partial.h12 ?? h12;
+    const nextMinute = partial.minute ?? minute;
+    const nextPm = partial.pm ?? isPm;
+    const nextH24 = (nextH12 % 12) + (nextPm ? 12 : 0);
+    handleChange({ resetAtMinutes: nextH24 * 60 + nextMinute });
   };
 
   return (
@@ -113,21 +135,41 @@ export default function App() {
               <span className="setting-label">Daily reset time</span>
               <span className="setting-desc">Auto-clear consignments at this time (BDT)</span>
             </div>
-            <select
-              className="setting-select"
-              value={settings.resetHour}
-              onChange={(e) =>
-                handleChange({ resetHour: parseInt(e.target.value, 10) })
-              }
-              aria-label="Daily reset time"
-            >
-              <option value={17}>5:00 PM</option>
-              <option value={18}>6:00 PM</option>
-              <option value={19}>7:00 PM</option>
-              <option value={20}>8:00 PM</option>
-              <option value={21}>9:00 PM</option>
-              <option value={22}>10:00 PM</option>
-            </select>
+            <div className="time-selects" role="group" aria-label="Daily reset time">
+              <select
+                className="setting-select"
+                value={h12}
+                onChange={(e) => handleTimeChange({ h12: parseInt(e.target.value, 10) })}
+                aria-label="Reset hour"
+              >
+                {HOUR_OPTIONS.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="setting-select"
+                value={minute}
+                onChange={(e) => handleTimeChange({ minute: parseInt(e.target.value, 10) })}
+                aria-label="Reset minute"
+              >
+                {MINUTE_OPTIONS.map((m) => (
+                  <option key={m} value={m}>
+                    {String(m).padStart(2, '0')}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="setting-select"
+                value={isPm ? 'PM' : 'AM'}
+                onChange={(e) => handleTimeChange({ pm: e.target.value === 'PM' })}
+                aria-label="AM or PM"
+              >
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+              </select>
+            </div>
           </label>
 
           <div className="setting-card">
@@ -139,6 +181,47 @@ export default function App() {
               Clear All
             </button>
           </div>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2 className="section-title">Behavior</h2>
+        <div className="settings-grid">
+          <label className="setting-card">
+            <div className="setting-info">
+              <span className="setting-label">Skip weight step</span>
+              <span className="setting-desc">Print+Sort directly, no weight entry</span>
+            </div>
+            <input
+              type="checkbox"
+              className="toggle-input"
+              checked={settings.skipWeight}
+              onChange={(e) => handleChange({ skipWeight: e.target.checked })}
+              aria-label="Skip weight step"
+            />
+            <span className="toggle-track">
+              <span className="toggle-thumb" />
+            </span>
+          </label>
+
+          <label className="setting-card">
+            <div className="setting-info">
+              <span className="setting-label">Daily reset</span>
+              <span className="setting-desc">Auto-clear consignments daily at reset time</span>
+            </div>
+            <input
+              type="checkbox"
+              className="toggle-input"
+              checked={settings.dailyResetEnabled}
+              onChange={(e) =>
+                handleChange({ dailyResetEnabled: e.target.checked })
+              }
+              aria-label="Daily reset"
+            />
+            <span className="toggle-track">
+              <span className="toggle-thumb" />
+            </span>
+          </label>
         </div>
       </section>
 
