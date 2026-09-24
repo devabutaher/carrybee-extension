@@ -16,13 +16,18 @@ Automates the Order Processing flow on CarryBee. Supports 4 processing modes wit
 ### Mode 1: Merchant Order ID
 - Scan/type Merchant ID → exactly 1 row → auto weight focus
 - You enter weight + press Enter → auto print → auto sort
+- With **Skip weight step** ON: no weight prompt, direct print+sort
 - Field auto-selects, next scan replaces old ID
 
 ### Mode 2: Customer Phone
-- Type phone number (any digits) → exactly 1 row → **pauses**
-- You review → press Enter to confirm → auto weight focus
+- Type phone number (typed only, no scan) → extension auto-searches
+- Input settles (400ms pause) → digits checked against parcel phone
+- Mismatch → "Phone number mismatch" badge (2s) → stops
+- Match → "Parcel found — press Enter" → press Enter → auto weight focus
+- Enter right after typing counts as confirm (no second Enter needed)
 - You enter weight + press Enter → auto print → auto sort
-- Field auto-selects for next scan
+- **Skip weight step** ON: skip weight, direct print+sort
+- Field auto-selects for next number
 
 ### Mode 3: COD Quantity
 - Type COD amount → field appears at bottom-right
@@ -34,6 +39,7 @@ Automates the Order Processing flow on CarryBee. Supports 4 processing modes wit
 ### Mode 4: Consignment ID
 - Scan/type Consignment ID → exactly 1 row → auto weight focus
 - You enter weight + press Enter → auto print → auto sort
+- With **Skip weight step** ON: no weight prompt, direct print+sort
 - Field auto-selects, next scan replaces old ID
 
 ---
@@ -47,11 +53,14 @@ Automates the Order Processing flow on CarryBee. Supports 4 processing modes wit
 - Daily auto-reset at configured time (default 7pm BDT)
 
 ### Popup Section: Sorted Consignments
-1. **Business dropdown** — select business
-2. **Sorted count** — total for that business
+1. **Total counter** — green, sum across ALL businesses (top-right)
+2. **Business dropdown** — select business (with per-business count)
 3. **List** — one Consignment ID per line (monospace font)
 4. **Copy All** — copies to clipboard (paste into Sheets)
 5. **Clear** — delete all data (confirm first)
+
+Tracking data (total, dropdown, list) is visible from **any tab/page** —
+only toggle + mode buttons need the Order Processing page.
 
 ---
 
@@ -86,7 +95,9 @@ Right-click extension icon → **Options** to configure:
 |---------|---------|-------------|
 | Show main badge | ON | Display status badge on processing page |
 | Show progress badge (COD) | ON | Display processing count during COD batch |
-| Daily reset time | 7:00 PM BDT | Auto-clear consignments at this time |
+| Daily reset time | 7:00 PM BDT | Any time — Hour (1-12) / Minute / AM-PM picker |
+| Daily reset | ON | Toggle auto-clear of consignments daily |
+| Skip weight step | OFF | Print+sort directly, no weight entry |
 
 ---
 
@@ -98,8 +109,9 @@ Right-click extension icon → **Options** to configure:
 - Manual: retry or continue with next parcel
 
 ### Search Errors
-- **No match found** → badge shows immediately
-- **Multiple parcels** → badge waits 800ms (debounce), then shows error
+- **No parcel found** → badge shows when search returns 0 rows
+- **Multiple parcels found** → badge shows when row count ≠ 1 (stable, ≤1s)
+- **Phone number mismatch** → judged after 400ms typing settle, badge 2s
 - **Empty field** after backspace → no error badge
 
 ### COD Mode Edge Cases
@@ -117,6 +129,9 @@ Right-click extension icon → **Options** to configure:
 | `Ctrl+Shift+2` | Customer Phone mode |
 | `Ctrl+Shift+3` | Merchant Order ID mode |
 | `Ctrl+Shift+4` | COD Quantity mode |
+
+Press the **same** shortcut again while that mode is active → extension **OFF**.
+Pressing a different mode shortcut switches mode (ON if currently off).
 
 ---
 
@@ -155,7 +170,8 @@ Right-click extension icon → **Options** to configure:
 ```
 carrybee-extension/
 ├── manifest.json          # Chrome extension manifest (MV3)
-├── background.js          # Service worker — keyboard shortcuts
+├── shared.js              # Shared utils — daily reset math (BDT)
+├── background.js          # Service worker — shortcuts + daily reset
 ├── content.js             # Content script — main automation logic
 ├── content.css            # Content script styles (badges, COD input)
 ├── popup.html             # Extension popup UI
