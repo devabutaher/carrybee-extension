@@ -1,10 +1,10 @@
-# CarryBee Auto-Flow v2.0.0
+# CarryBee Auto-Flow v2.1.0
 
 Automates the Order Processing flow on CarryBee Hive. Supports Merchant Order ID, Customer Phone, COD Quantity, and Consignment ID modes.
 
 ## Installation
 
-1. Download `carrybee-v2.zip` from [Releases](https://github.com/devabutaher/carrybee-extension/releases/tag/v2.0.0)
+1. Download `carrybee-v2.zip` from [Releases](https://github.com/devabutaher/carrybee-extension/releases/tag/v2.1.0)
 2. Extract the ZIP file
 3. Open `chrome://extensions` in your browser
 4. Enable **Developer mode** (top right toggle)
@@ -20,7 +20,8 @@ Automates the Order Processing flow on CarryBee Hive. Supports Merchant Order ID
 | `Ctrl+Shift+2` | Customer Phone |
 | `Ctrl+Shift+3` | Merchant Order ID |
 | `Ctrl+Shift+4` | COD Quantity |
-| `Ctrl+Shift+X` | Start/Stop automation |
+
+Press the active mode's shortcut again to toggle it OFF.
 
 ## Build from Source
 
