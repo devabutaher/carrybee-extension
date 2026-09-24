@@ -214,6 +214,22 @@ body {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
+/* ============ Time Selects (hour / minute / AM-PM) ============ */
+.time-selects {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.time-selects .setting-select {
+  width: auto;
+  min-width: 64px;
+}
+
+#resetAmPm {
+  min-width: 72px;
+}
+
 /* ============ Danger Button ============ */
 .btn-danger {
   padding: 8px 14px;

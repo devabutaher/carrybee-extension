@@ -53,20 +53,20 @@
     <section class="settings-section">
       <h2 class="section-title">Data</h2>
       <div class="settings-grid">
-        <label class="setting-card">
+        <div class="setting-card">
           <div class="setting-info">
             <span class="setting-label">Daily reset time</span>
             <span class="setting-desc">Auto-clear consignments at this time (BDT)</span>
           </div>
-          <select id="resetHour" class="setting-select" aria-label="Daily reset time">
-            <option value="17">5:00 PM</option>
-            <option value="18">6:00 PM</option>
-            <option value="19" selected>7:00 PM</option>
-            <option value="20">8:00 PM</option>
-            <option value="21">9:00 PM</option>
-            <option value="22">10:00 PM</option>
-          </select>
-        </label>
+          <div class="time-selects" role="group" aria-label="Daily reset time">
+            <select id="resetHour" class="setting-select" aria-label="Reset hour"></select>
+            <select id="resetMinute" class="setting-select" aria-label="Reset minute"></select>
+            <select id="resetAmPm" class="setting-select" aria-label="AM or PM">
+              <option value="AM">AM</option>
+              <option value="PM" selected>PM</option>
+            </select>
+          </div>
+        </div>
 
         <div class="setting-card">
           <div class="setting-info">
@@ -75,6 +75,29 @@
           </div>
           <button id="clearAll" class="btn-danger">Clear All</button>
         </div>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h2 class="section-title">Behavior</h2>
+      <div class="settings-grid">
+        <label class="setting-card">
+          <div class="setting-info">
+            <span class="setting-label">Skip weight step</span>
+            <span class="setting-desc">Print+Sort directly, no weight entry</span>
+          </div>
+          <input type="checkbox" id="skipWeight" class="toggle-input" aria-label="Skip weight step" />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+
+        <label class="setting-card">
+          <div class="setting-info">
+            <span class="setting-label">Daily reset</span>
+            <span class="setting-desc">Auto-clear consignments daily at reset time</span>
+          </div>
+          <input type="checkbox" id="dailyResetEnabled" class="toggle-input" checked aria-label="Daily reset" />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
       </div>
     </section>
 
