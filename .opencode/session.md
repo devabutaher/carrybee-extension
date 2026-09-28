@@ -2,7 +2,7 @@
 
 ## Done this session
 - **Released v1.2.0** earlier (6 commits + lightweight tag, pushed v1 + tag) — v1 line complete
-- **Released v2.1.0** — full port of v1.1.3 + v1.2.0 into React/WXT clone at `C:\Users\write\Downloads\carrybee-new` (branch `v2`):
+- **Released v2.1.0** — full port of v1.1.3 + v1.2.0 into React/WXT clone (folder renamed `carrybee-new` → **`carrybee-react`**, branch `v2`):
   1. `184c635` fix(content): toast observer characterData + remove button missing checks
   2. `6f45266` feat(content): phone settle, sort unverified tracking, shortcut toggle, badge guards (+CFG alignment, toast matcher fixes, processToasts gate, COD 1000ms, types PrintThenSortResult.unverified)
   3. `6e6e79f` feat(settings): reset minutes picker, skip weight, daily reset toggle + live mirror (Settings type rewrite, date.ts pure-UTC math, storage migration + Fix B mirror, options 12h picker + Behavior, content `!settings.skipWeight`, deleted types/storage.ts)
@@ -11,7 +11,13 @@
   6. `0cceace` chore(release): v2.1.0 (package.json + wxt.config 2.1.0, NEW .github/workflows/release.yml — windows-latest because package.mjs uses powershell Compress-Archive)
 - lightweight tag `v2.1.0`; pushed `origin v2`, `origin v2:main` (synced), `origin v2.1.0`
 - verified: `npx tsc --noEmit` exit 0, `npm run build` green, built manifest version 2.1.0
-- Actions: Release run #35973333295 in progress (tag v2.1.0)
+- Actions: Release run #35973333295 in progress (tag v2.1.0) → published with zip
+- **Released v2.1.1** (user browser test feedback, 2 fixes):
+  - `6121ffa` fix(options): open settings in full tab — WXT ignores `manifest.options_ui` (UserManifest excludes it); real API = HTML meta tag `<meta name="wxt.openInTab" content="true">` in `src/entrypoints/options/index.html` (parsed by find-entrypoints.mjs importHtmlEntrypoint → `options.options.openInTab`)
+  - `01bf4f3` fix(content): refocus input after manual sort — `handleManualSortCompletion` v2 had refocus only in non-resume path; moved `refocusCurrentInput()` to right after `state='IDLE'` (matches v1 content.js:466)
+  - `509d2f0` chore(release): v2.1.1 (package.json + wxt.config + README)
+  - lightweight tag v2.1.1, pushed v2 + v2:main + tag → Release run
+- v2.1.0 browser test verdict (user): no major bugs; issues = above 2, both fixed in v2.1.1
 
 ## Active files (carrybee-new, branch v2 @ 0cceace)
 - `src/entrypoints/content/index.ts` — CFG 84-102, badges 179+, toast watcher 243+, watchDom 336+, printThenSort ~585, runFullCycle ~660, onSearchInputChanged ~765, runCodBatch ~920, handleCommand ~1050, guards 1100+, init 1210

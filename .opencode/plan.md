@@ -25,8 +25,13 @@ Status legend: ✅ done | 🔄 in progress | ⬜ pending
 - ✅ popup: Total sorted counter + tracking loads on ANY page + Clear via Dexie `clearConsignmentsByBusiness` (Fix A)
 - ✅ README v2.1.0, version bump package.json + wxt.config (2.1.0)
 - ✅ NEW `.github/workflows/release.yml` — tag push → windows-latest → npm ci + package → GH Release with carrybee-v2.zip
-- ✅ 6 commits on `v2` (184c635…0cceace), lightweight tag `v2.1.0`, pushed `v2` + `main` + tag → Release run #35973333295
-- ⬜ Browser test after zip attaches
+- ✅ 6 commits on `v2` (184c635…0cceace), lightweight tag `v2.1.0`, pushed `v2` + `main` + tag → Release run #35973333295 → zip attached
+- ✅ Browser test (user): no major bugs
+- ✅ **v2.1.1** — 2 fixes from test: options full tab (`wxt.openInTab` meta tag — WXT ignores manifest.options_ui), refocus input after manual sort (v1 order) — commits 6121ffa/01bf4f3/509d2f0, tag pushed
+- ⬜ Browser test v2.1.1 zip (full-tab settings + refocus)
+
+## v2 direction (user decision)
+- v2 = sole active line; v1 frozen after tests pass; folder now `carrybee-react`
 
 ## Older done (v1 line)
 - ✅ v1.2.0: settings 12h picker, skipWeight, dailyResetEnabled, remember-mode REMOVED, badge guards, shortcut toggle, phone settle, sort unverified, popup total/any-page, shared.js, build.yml +shared.js
