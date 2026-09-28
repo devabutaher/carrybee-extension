@@ -297,6 +297,7 @@ export default defineContentScript({
       }
       pendingSortConsignmentId = null;
       state = "IDLE";
+      refocusCurrentInput();
 
       // Resume auto-flow if input has a value
       const inputConfigs: Record<
@@ -316,7 +317,6 @@ export default defineContentScript({
         }
       }
 
-      refocusCurrentInput();
       showIdleStatus();
     }
 
