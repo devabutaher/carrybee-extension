@@ -5,7 +5,15 @@
  * Forwards commands to the active tab's content script.
  */
 
-import { checkDailyReset, storageDB, addConsignment, getSettings } from '~/utils/storage';
+import {
+  addConsignment,
+  addPrintLock,
+  checkDailyReset,
+  getPrintLocks,
+  getSettings,
+  prunePrintLocks,
+  storageDB,
+} from '~/utils/storage';
 
 export default defineBackground(() => {
   // ============ KEYBOARD SHORTCUTS ============
@@ -45,11 +53,15 @@ export default defineBackground(() => {
   browser.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === 'dailyReset') {
       await checkDailyReset();
+      // Hourly piggyback: prune print locks older than 3 days. Intentionally
+      // separate from the daily reset — locks must not die at reset time.
+      await prunePrintLocks();
     }
   });
 
   // Also check on service worker startup
   checkDailyReset();
+  prunePrintLocks();
 
   // ============ MESSAGE HANDLING ============
 
@@ -65,6 +77,22 @@ export default defineBackground(() => {
       addConsignment(msg.business, msg.consignmentId, msg.timestamp).then(() => {
         sendResponse({ ok: true });
       });
+      return true;
+    }
+
+    if (msg.type === 'CB_ADD_PRINT_LOCK') {
+      addPrintLock(
+        String(msg.consignmentId),
+        !!msg.confirmed,
+        Number(msg.timestamp) || Date.now()
+      )
+        .then(() => sendResponse({ ok: true }))
+        .catch(() => sendResponse({ ok: false }));
+      return true;
+    }
+
+    if (msg.type === 'CB_GET_PRINT_LOCKS') {
+      getPrintLocks().then((locks) => sendResponse({ locks }));
       return true;
     }
 

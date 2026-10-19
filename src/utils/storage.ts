@@ -15,14 +15,28 @@ interface ConsignmentRow {
   at: number;
 }
 
+/** Parcel received a print click; `confirmed` only after a print toast was verified. */
+interface PrintLockRow {
+  id: string; // consignment ID
+  at: number;
+  confirmed: 0 | 1;
+}
+
 const db = new Dexie('CarryBeeDB') as Dexie & {
   consignments: EntityTable<ConsignmentRow, 'id'>;
   settings: EntityTable<SettingsRow, 'key'>;
+  printLocks: EntityTable<PrintLockRow, 'id'>;
 };
 
 db.version(1).stores({
   consignments: '++id, business, consignmentId, at, [business+consignmentId]',
   settings: 'key',
+});
+
+db.version(2).stores({
+  consignments: '++id, business, consignmentId, at, [business+consignmentId]',
+  settings: 'key',
+  printLocks: 'id, at',
 });
 
 export const storageDB = db;
@@ -159,6 +173,50 @@ export async function clearConsignmentsByBusiness(
  */
 export async function clearAllConsignments(): Promise<void> {
   await db.consignments.clear();
+}
+
+// ============ Print Locks ============
+// Anti-double-print guard: once a print click happens for a consignment the
+// extension must never click print on it again. Locks survive Stop, page
+// reload and browser restart. Expire after 3 days (auto-pruned), NOT cleared
+// by the daily reset.
+
+const PRINT_LOCK_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** Prune print locks older than the TTL (3 days). */
+export async function prunePrintLocks(now: number = Date.now()): Promise<void> {
+  await db.printLocks.where('at').below(now - PRINT_LOCK_TTL_MS).delete();
+}
+
+/**
+ * Record a print lock for a consignment. Never downgrades a confirmed lock to
+ * pending, and never overwrites an existing confirmed lock.
+ */
+export async function addPrintLock(
+  consignmentId: string,
+  confirmed: boolean,
+  timestamp: number = Date.now()
+): Promise<void> {
+  const existing = await db.printLocks.get(consignmentId);
+  if (existing) {
+    if (existing.confirmed === 1 || !confirmed) return; // confirmed stays, never downgrade
+    await db.printLocks.update(consignmentId, { confirmed: 1, at: timestamp });
+    return;
+  }
+  await db.printLocks.add({
+    id: consignmentId,
+    at: timestamp,
+    confirmed: confirmed ? 1 : 0,
+  });
+}
+
+/** { consignmentId: printWasToastConfirmed } — prunes expired locks first. */
+export async function getPrintLocks(): Promise<Record<string, boolean>> {
+  await prunePrintLocks();
+  const rows = await db.printLocks.toArray();
+  const locks: Record<string, boolean> = {};
+  for (const row of rows) locks[row.id] = row.confirmed === 1;
+  return locks;
 }
 
 /**

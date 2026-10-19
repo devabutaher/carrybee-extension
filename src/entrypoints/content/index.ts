@@ -90,8 +90,11 @@ export default defineContentScript({
       weightToastTimeoutMs: 3000,
       printToastTimeoutMs: 12000,
       sortPollMs: 500,
-      sortGraceTimeoutMs: 3000,
-      sortDeadlineMs: 20000,
+      // Sort confirm window. No early shortcuts: React may re-render the sort
+      // button while the request is still in flight — treating that as
+      // completion caused double prints. Wait for a real signal: toast, row
+      // removal, or this deadline (then batch stops with a stuck report).
+      sortDeadlineMs: 30000,
       badgeDisplayMs: 3000,
       mismatchBadgeMs: 2000,
       phoneSettleMs: 400,
@@ -109,6 +112,7 @@ export default defineContentScript({
     let cycleToken = 0;
     let codQuantityCounter = 0;
     let codQuantityTarget = 0;
+    let codStopRequested = false;
     let lastToastAt = 0;
     let lastToastEvents: Array<{ text: string; at: number }> = [];
     let currentBusinessName: string | null = null;
@@ -118,6 +122,48 @@ export default defineContentScript({
     let pendingSortConsignmentId: string | null = null;
     let lastClickedRowId: string | null = null;
     let lastEnterAt = 0;
+
+    // Anti-double-print guard: consignment ID → "pending" (print clicked, toast
+    // unverified) | "confirmed" (print toast verified). In-memory mirror of the
+    // Dexie `printLocks` table; seeded at init and refreshed at batch start.
+    const printLocks = new Map<string, "pending" | "confirmed">();
+
+    function seedPrintLocks(): Promise<void> {
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({ type: "CB_GET_PRINT_LOCKS" }, (response) => {
+          if (!chrome.runtime.lastError && response?.locks) {
+            for (const [id, confirmed] of Object.entries(
+              response.locks as Record<string, boolean>,
+            )) {
+              if (printLocks.get(id) !== "confirmed") {
+                printLocks.set(id, confirmed ? "confirmed" : "pending");
+              }
+            }
+          }
+          resolve();
+        });
+      });
+    }
+
+    /** Never downgrades a confirmed lock, never duplicates a pending stamp. */
+    function addPrintLock(
+      consignmentId: string | null,
+      level: "pending" | "confirmed",
+    ): void {
+      if (!consignmentId) return;
+      const existing = printLocks.get(consignmentId);
+      if (existing === "confirmed") return;
+      if (existing === "pending" && level === "pending") return;
+      printLocks.set(consignmentId, level);
+      chrome.runtime
+        .sendMessage({
+          type: "CB_ADD_PRINT_LOCK",
+          consignmentId,
+          confirmed: level === "confirmed",
+          timestamp: Date.now(),
+        })
+        .catch(() => {});
+    }
 
     // ============ BADGE ELEMENTS ============
 
@@ -274,17 +320,29 @@ export default defineContentScript({
         recordToast(text);
 
         if (isSortToast(text.toLowerCase())) {
+          // Snapshot before restarting auto-flow: handleManualSortCompletion()
+          // synchronously sets state = "WAITING_ROWS" whenever the search input
+          // still holds a value (e.g. right after "Multiple parcels found"),
+          // which would make an IDLE check run too late and drop the manually
+          // sorted parcel's consignment ID.
+          const clickedRowId = lastClickedRowId;
+          const stateAtToast = state;
+
           if (
             enabled &&
             mode &&
-            state !== "PRINTING" &&
-            state !== "SORTING"
+            stateAtToast !== "PRINTING" &&
+            stateAtToast !== "SORTING"
           ) {
             handleManualSortCompletion();
           }
-          if (lastClickedRowId && (state === "IDLE" || !enabled)) {
+
+          if (
+            clickedRowId &&
+            (stateAtToast === "IDLE" || state === "IDLE" || !enabled)
+          ) {
             const businessName = getBusinessName();
-            if (businessName) addConsignmentId(lastClickedRowId, businessName);
+            if (businessName) addConsignmentId(clickedRowId, businessName);
             lastClickedRowId = null;
           }
         }
@@ -518,6 +576,7 @@ export default defineContentScript({
     function userDisable(): void {
       enabled = false;
       cycleToken++;
+      codStopRequested = false;
       state = "IDLE";
       confirmResolve = null;
       confirmKeydownHandler = null;
@@ -604,25 +663,40 @@ export default defineContentScript({
     async function printThenSort(
       row: Element,
       myToken: number,
+      consignmentId: string | null,
     ): Promise<PrintThenSortResult> {
-      state = "PRINTING";
+      // Print-only-once guard: if this consignment already got a verified
+      // print, never click print again — go straight to sorting.
+      const printAlreadyConfirmed =
+        !!consignmentId && printLocks.get(consignmentId) === "confirmed";
 
-      const printSinceMark = lastToastAt;
-      const printBtn = findActionButton(row, "lucide-printer");
-      setStatus("Printing...", "working");
-      printBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      if (!printAlreadyConfirmed) {
+        state = "PRINTING";
 
-      const printToast = await waitForToastSince(
-        isPrintSentToast,
-        printSinceMark,
-        CFG.printToastTimeoutMs,
-      );
-      if (myToken !== cycleToken) return { ok: false, reason: "stopped" };
+        const printSinceMark = lastToastAt;
+        const printBtn = findActionButton(row, "lucide-printer");
+        setStatus("Printing...", "working");
+        // Lock before the click: even if the toast never lands (user stops
+        // mid-load) the parcel can never be auto-printed twice. Worst case it
+        // stays pending and the user prints/sorts it manually.
+        addPrintLock(consignmentId, "pending");
+        printBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-      if (!printToast) {
-        setStatus("Print failed", "error");
-        await sleep(1000);
-        return { ok: false, reason: "print-timeout" };
+        const printToast = await waitForToastSince(
+          isPrintSentToast,
+          printSinceMark,
+          CFG.printToastTimeoutMs,
+        );
+        if (myToken !== cycleToken) return { ok: false, reason: "stopped" };
+
+        if (!printToast) {
+          setStatus("Print failed", "error");
+          await sleep(1000);
+          return { ok: false, reason: "print-timeout" };
+        }
+
+        // Print verified → upgrade lock to confirmed (sort-only retry allowed).
+        addPrintLock(consignmentId, "confirmed");
       }
 
       state = "SORTING";
@@ -632,11 +706,14 @@ export default defineContentScript({
       setStatus("Sorting...", "working");
       sortBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-      // Poll for sort completion: toast OR row removed (deadline in CFG)
+      // Poll for sort completion: toast OR row removed, until the deadline.
+      // Deliberately NO "button is back, we're done" shortcut — the sort
+      // button can re-render while the request is still in flight, and
+      // bailing out early left the row in the list for the next iteration,
+      // which re-printed the same parcel (double-print bug).
       const DEADLINE = Date.now() + CFG.sortDeadlineMs;
       let sortToast: string | null = null;
-      let rowRemoved = false;
-      while (!sortToast && Date.now() < DEADLINE) {
+      while (Date.now() < DEADLINE) {
         if (myToken !== cycleToken) return { ok: false, reason: "stopped" };
         sortToast = await waitForToastSince(
           isSortToast,
@@ -645,37 +722,17 @@ export default defineContentScript({
         );
         if (sortToast) break;
         // Row removed from DOM = sorted (even without toast)
-        if (!document.body.contains(row)) {
-          rowRemoved = true;
-          break;
-        }
-        // Sort button replaced by spinner = still loading, keep waiting
-        const stillLoading = !findActionButton(
-          row,
-          "lucide-arrow-down-wide-narrow",
-        );
-        if (!stillLoading) break;
+        if (!document.body.contains(row)) break;
       }
 
-      if (rowRemoved) return { ok: true };
+      if (sortToast || !document.body.contains(row)) return { ok: true };
 
-      // Row still present — grace wait for toast
-      if (!sortToast) {
-        sortToast = await waitForToastSince(
-          isSortToast,
-          sortSinceMark,
-          CFG.sortGraceTimeoutMs,
-        );
-      }
-
-      if (!sortToast) {
-        // Stuck loading — show badge, but caller tracks consignment as sorted
-        setStatus("Sort failed", "error");
-        await sleep(1000);
-        return { ok: true, unverified: true };
-      }
-
-      return { ok: true };
+      // Deadline hit, no confirmation: network stall or silent failure. The
+      // consignment ID is already print-locked and saved to the consignment
+      // list by the caller — the user checks/sorts it manually.
+      setStatus("Sort failed", "error");
+      await sleep(1000);
+      return { ok: true, unverified: true };
     }
 
     // ============ CORE CYCLE ============
@@ -763,7 +820,7 @@ export default defineContentScript({
         }
       }
 
-      const result = await printThenSort(row, myToken);
+      const result = await printThenSort(row, myToken, consignmentId);
       if (myToken !== cycleToken) return;
 
       if (!result.ok) {
@@ -940,20 +997,35 @@ export default defineContentScript({
 
     // ============ COD BATCH MODE ============
 
+    /**
+     * Graceful stop: does NOT abort the current print+sort cycle. Sets a flag;
+     * the batch loop finishes the current parcel (print and sort must both
+     * conclude) and then stops with a "✓ N sorted" badge. Hard abort (popup
+     * off / mode switch / page change) still works through cycleToken.
+     */
     async function stopCodBatch(): Promise<void> {
-      cycleToken++;
-      await flushBatchConsignments();
-      hideCodQuantityInput();
-      setStatus(
-        `Stopped — ${codQuantityCounter}/${codQuantityTarget} sorted`,
-        "error",
-      );
-      setCodProgress(null);
-      await sleep(2500);
-      state = "IDLE";
-      showCodQuantityInput();
-      const codInput = SEL.codInput();
-      if (codInput) codInput.focus();
+      codStopRequested = true;
+      setStatus("Stopping after this parcel…", "working");
+    }
+
+    /**
+     * Pick the next row to process.
+     * - Rows with a PENDING print lock (print clicked but never verified) are
+     *   skipped permanently — the extension never prints them again.
+     * - Rows with a CONFIRMED print lock are picked too; they get a
+     *   sort-only retry (no print).
+     */
+    function pickCodRow(): Promise<Element | null> {
+      return waitFor(() => {
+        const rows = getRowsCached();
+        for (const r of rows) {
+          const id = getConsignmentIdFromRow(r);
+          if (id && printLocks.get(id) === "pending") continue;
+          if (!findActionButton(r, "lucide-printer")) continue; // spinner / not ready
+          return r;
+        }
+        return null;
+      }, { interval: 200, timeout: 1000 });
     }
 
     async function startCodBatch(qty: number): Promise<void> {
@@ -963,50 +1035,89 @@ export default defineContentScript({
       clearCycleCache();
       codQuantityCounter = 0;
       codQuantityTarget = qty;
+      codStopRequested = false;
       currentBusinessName = getBusinessName();
 
       const input = createCodQuantityInput();
       if (!input) return;
       if (codStopButtonEl) codStopButtonEl.style.display = "block";
 
+      // Refresh anti-double-print locks from Dexie (survives reload/restart).
+      await seedPrintLocks();
+      if (myToken !== cycleToken) return;
+
       await runCodBatch(myToken);
     }
 
+    /** Finalize a finished COD batch: flush records, badge, IDLE state. */
+    async function finishCodBatch(
+      myToken: number,
+      outcome: "done" | "stopped" | "stuck" | "no-rows",
+    ): Promise<void> {
+      await flushBatchConsignments();
+      if (myToken !== cycleToken) return;
+
+      if (outcome === "no-rows") {
+        setCodProgress(null);
+        if (codQuantityCounter > 0) {
+          setStatus(`✓ ${codQuantityCounter} parcels sorted`, "success");
+          await sleep(CFG.badgeDisplayMs);
+        } else {
+          setStatus("No more rows", "error");
+          await sleep(2000);
+        }
+      } else if (outcome === "stuck") {
+        setCodProgress(
+          `✓ ${codQuantityCounter} sorted · 1 stuck (check manually)`,
+        );
+        setStatus("Sort failed — stopped", "error");
+        await sleep(CFG.badgeDisplayMs);
+        setCodProgress(null);
+      } else if (outcome === "stopped") {
+        setCodProgress(`✓ ${codQuantityCounter} sorted`);
+        setStatus("Stopped", "info");
+        await sleep(CFG.badgeDisplayMs);
+        setCodProgress(null);
+      } else {
+        setCodProgress(`✓ ${codQuantityCounter} sorted`);
+        setStatus("✓ Done", "success");
+        await sleep(CFG.badgeDisplayMs);
+        setCodProgress(null);
+      }
+
+      if (myToken === cycleToken) {
+        state = "IDLE";
+        showCodQuantityInput();
+        const codInput = SEL.codInput();
+        if (codInput) codInput.focus();
+      }
+    }
+
     async function runCodBatch(myToken: number): Promise<void> {
-      while (codQuantityCounter < codQuantityTarget && myToken === cycleToken) {
+      let batchOutcome: "done" | "stopped" | "stuck" | "no-rows" = "done";
+
+      while (
+        codQuantityCounter < codQuantityTarget &&
+        myToken === cycleToken
+      ) {
+        if (codStopRequested) {
+          batchOutcome = "stopped";
+          break;
+        }
         clearCycleCache();
         state = "PROCESSING";
 
-        const row = await waitFor(
-          () => {
-            const rows = getRowsCached();
-            const first = rows[0];
-            if (!first) return null;
-            if (!findActionButton(first, "lucide-printer")) return null;
-            return first;
-          },
-          { interval: 200, timeout: 1000 },
-        );
+        const row = await pickCodRow();
 
         if (myToken !== cycleToken) return;
+        if (codStopRequested) {
+          batchOutcome = "stopped";
+          break;
+        }
 
         if (!row) {
-          await flushBatchConsignments();
-          setCodProgress(null);
-          if (codQuantityCounter > 0) {
-            setStatus(`✓ ${codQuantityCounter} parcels sorted`, "success");
-            await sleep(CFG.badgeDisplayMs);
-          } else {
-            setStatus("No more rows", "error");
-            await sleep(2000);
-          }
-          if (myToken === cycleToken) {
-            state = "IDLE";
-            showCodQuantityInput();
-            const codInput = SEL.codInput();
-            if (codInput) codInput.focus();
-          }
-          return;
+          batchOutcome = "no-rows";
+          break;
         }
 
         setCodProgress(
@@ -1015,10 +1126,11 @@ export default defineContentScript({
 
         const consignmentId = getConsignmentIdFromRow(row);
 
-        const result = await printThenSort(row, myToken);
+        const result = await printThenSort(row, myToken, consignmentId);
         if (myToken !== cycleToken) return;
 
         if (!result.ok) {
+          batchOutcome = "done";
           await flushBatchConsignments();
           setCodProgress(null);
           await sleep(2500);
@@ -1031,31 +1143,32 @@ export default defineContentScript({
           return;
         }
 
-        // Wait for row to disappear (skip if stuck/unverified — row may stay)
-        if (!result.unverified) {
-          await waitFor(() => !document.body.contains(row), { timeout: 2000 });
-          if (myToken !== cycleToken) return;
-        }
-
+        // Save the ID even when the sort stalls — the user checks/sorts it
+        // manually while the extension refuses to re-print it.
         if (consignmentId) {
           await addConsignmentId(consignmentId, currentBusinessName!, true);
         }
 
+        if (result.unverified) {
+          // Sort never confirmed within 30s → stop the batch, report counts.
+          batchOutcome = "stuck";
+          break;
+        }
+
+        // Wait for row to disappear after a confirmed sort
+        await waitFor(() => !document.body.contains(row), { timeout: 2000 });
+        if (myToken !== cycleToken) return;
+
         codQuantityCounter++;
+
+        if (codStopRequested) {
+          batchOutcome = "stopped";
+          break;
+        }
       }
 
-      await flushBatchConsignments();
-
-      if (myToken === cycleToken) {
-        setCodProgress(`✓ ${codQuantityCounter} sorted`);
-        setStatus("✓ Done", "success");
-        await sleep(CFG.badgeDisplayMs);
-        setCodProgress(null);
-        state = "IDLE";
-        showCodQuantityInput();
-        const codInput = SEL.codInput();
-        if (codInput) codInput.focus();
-      }
+      if (myToken !== cycleToken) return;
+      await finishCodBatch(myToken, batchOutcome);
     }
 
     // ============ INPUT LISTENERS ============
@@ -1293,6 +1406,8 @@ export default defineContentScript({
       try {
         settings = await getSettingsFromBackground();
         await checkDailyResetFromBackground();
+        // Seed anti-double-print locks (Dexie survives reload/restart).
+        await seedPrintLocks();
 
         wireUrlWatcher();
         onUrlChange();
