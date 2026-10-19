@@ -1,5 +1,5 @@
 /**
- * CarryBee Order Processing Auto-Flow — Content Script
+ * Carrybee Order Processing Auto-Flow — Content Script
  *
  * Injects into hive.carrybee.com/order-processing/* pages.
  * Provides 4 automated processing modes.
@@ -991,7 +991,7 @@ export default defineContentScript({
         currentBusinessName = getBusinessName();
         await runFullCycle(result[0], myToken, !settings.skipWeight);
       } catch (e) {
-        if ((e as Error).name !== "AbortError") console.error("[CarryBee]", e);
+        if ((e as Error).name !== "AbortError") console.error("[Carrybee]", e);
       }
     }
 
@@ -1422,7 +1422,7 @@ export default defineContentScript({
           .sendMessage({ type: "CB_CONTENT_READY", url: location.href })
           .catch(() => {});
       } catch (e) {
-        console.error("[CarryBee] Init failed:", e);
+        console.error("[Carrybee] Init failed:", e);
       }
     }
 

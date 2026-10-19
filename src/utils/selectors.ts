@@ -1,5 +1,5 @@
 /**
- * DOM selector utilities for CarryBee page interaction.
+ * DOM selector utilities for Carrybee page interaction.
  * Robust fallback chain for finding input elements.
  */
 
@@ -73,7 +73,7 @@ export function findInputByLabel(
   return null;
 }
 
-/** DOM selectors for CarryBee page elements. */
+/** DOM selectors for Carrybee page elements. */
 export const SEL = {
   merchantOrderInput: () => findInputByLabel('Merchant Order ID', 'Search Merchant Order ID'),
   phoneInput: () => findInputByLabel('Customer Phone', 'Search Customer Phone'),

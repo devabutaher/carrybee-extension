@@ -4,10 +4,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   srcDir: 'src',
   manifest: {
-    name: 'CarryBee Auto-Flow',
+    name: 'Carrybee Auto-Flow',
     description:
-      'Automates the Order Processing flow on CarryBee. Supports Merchant Order ID, Customer Phone, COD Quantity, and Consignment ID modes.',
-    version: '2.1.1',
+      'Automates the Order Processing flow on Carrybee. Supports Merchant Order ID, Customer Phone, COD Quantity, and Consignment ID modes.',
+    version: '2.1.3',
     minimum_chrome_version: '109',
     permissions: ['storage', 'activeTab', 'alarms', 'commands', 'tabs'],
     commands: {

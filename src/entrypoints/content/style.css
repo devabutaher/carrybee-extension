@@ -1,5 +1,5 @@
 /**
- * CarryBee Order Processing Auto-Flow — Content Styles
+ * Carrybee Order Processing Auto-Flow — Content Styles
  * Injected into hive.carrybee.com/order-processing/* pages.
  * Styles badges, COD input, and progress indicators.
  */
@@ -205,7 +205,7 @@ body > #cb-badge-container {
   transform: scale(0.97);
 }
 
-/* Hide stray CarryBee X icon floating over COD buttons */
+/* Hide stray Carrybee X icon floating over COD buttons */
 svg.lucide-x.text-gray-400 {
   display: none !important;
 }

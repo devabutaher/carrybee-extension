@@ -61,7 +61,7 @@ export default function App() {
           <div className="header-brand">
             <img
               src={chrome.runtime.getURL('icon/48.png')}
-              alt="CarryBee"
+              alt="Carrybee"
               className="header-logo"
             />
             <h1 className="header-title">Settings</h1>
@@ -83,7 +83,7 @@ export default function App() {
             Update on GitHub
           </a>
         </div>
-        <p className="header-subtitle">Customize CarryBee Auto-Flow behavior</p>
+        <p className="header-subtitle">Customize Carrybee Auto-Flow behavior</p>
       </header>
 
       <section className="settings-section">
@@ -248,7 +248,7 @@ export default function App() {
       </section>
 
       <footer className="settings-footer">
-        <p>{version || 'CarryBee Auto-Flow'}</p>
+        <p>{version || 'Carrybee Auto-Flow'}</p>
         <p>
           Owner: <strong>Abu Taher</strong>
         </p>

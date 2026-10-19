@@ -1,5 +1,5 @@
 /**
- * CarryBee Auto-Flow — Background Service Worker
+ * Carrybee Auto-Flow — Background Service Worker
  *
  * Handles keyboard shortcuts defined in manifest.json (chrome.commands).
  * Forwards commands to the active tab's content script.
