@@ -1,8 +1,9 @@
-name: Build & Release
+name: Build & Release (Check Entry)
 
 on:
   push:
     tags: ['v*']
+    branches: ['check-entry']
   workflow_dispatch:
 
 permissions:
@@ -18,35 +19,40 @@ jobs:
         run: |
           mkdir -p dist
           cp manifest.json dist/
-          cp popup.html popup.css popup.js dist/
-          cp content.js content.css dist/
-          cp background.js dist/
-          cp shared.js dist/
-          cp options.html options.css options.js dist/
-          cp -r icons dist/
+          cp background.js content.js dist/
+          cp -r popup offscreen icons dist/
+          cp README.md dist/
 
       - name: Create zip
         run: |
           cd dist
-          zip -r ../carrybee-extension-${{ github.ref_name }}.zip .
+          zip -r ../carrybee-check-entry-${{ github.ref_name }}.zip .
 
       - uses: actions/upload-artifact@v4
         with:
-          name: carrybee-extension-${{ github.ref_name }}
-          path: carrybee-extension-*.zip
+          name: carrybee-check-entry-${{ github.ref_name }}
+          path: carrybee-check-entry-*.zip
 
   release:
     needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
 
+      - name: Flatten artifact folders
+        run: |
+          for d in carrybee-check-entry-*/; do
+            if [ -d "$d" ]; then find "$d" -maxdepth 1 -name '*.zip' -exec mv {} . \; ; fi
+          done
+          ls -la
+
       - uses: softprops/action-gh-release@v2
         with:
-          files: carrybee-extension-*.zip
+          files: carrybee-check-entry-*.zip
           generate_release_notes: true
           body: |
-            ## CarryBee Auto-Flow ${{ github.ref_name }}
+            ## CarryBee Check Entry ${{ github.ref_name }}
 
             ### Installation
             1. Download the zip file below
@@ -54,12 +60,14 @@ jobs:
             3. Open Chrome → `chrome://extensions/`
             4. Enable "Developer mode"
             5. Click "Load unpacked" → select the extracted folder
+               (the folder containing `manifest.json`)
 
-            ### Keyboard Shortcuts
-            - `Ctrl+Shift+1` — Consignment ID mode
-            - `Ctrl+Shift+2` — Customer Phone mode
-            - `Ctrl+Shift+3` — Merchant Order ID mode
-            - `Ctrl+Shift+4` — COD Quantity mode
+            ### Flow (mouse-free)
+            1. Copy the Business Name (`Ctrl+C` in Google Sheets)
+            2. Press `Alt+Q` → popup opens focused, Business Name filled,
+               caret lands in the Phone field
+            3. Type the customer's phone → `Enter`
+            4. Result shows in the popup
 
             ### Owner
             **Abu Taher**

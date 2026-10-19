@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CarryBee Check Entry</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="panel-inner">
+    <header class="panel-header">
+      <img class="panel-logo" src="../icons/48.png" alt="" width="24" height="24" />
+      <h1 class="panel-title">Check Entry</h1>
+    </header>
+
+    <div class="status-row">
+      <span id="pageStatus" class="page-status">Checking page...</span>
+    </div>
+
+    <div id="openPageSection" class="open-page-section hidden">
+      Not on the CarryBee page?&nbsp;
+      <button id="openPageLink" class="open-page-link" type="button">
+        Open Order Processing
+      </button>
+    </div>
+
+    <div class="divider"></div>
+
+    <section class="form-section">
+      <div class="field-group">
+        <label class="field-label" for="input-business">Business Name</label>
+        <input
+          id="input-business"
+          class="field-input"
+          type="text"
+          placeholder="Business ID / Name"
+          autocomplete="off"
+        />
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Parcel Info <span class="field-hint">(any one)</span></label>
+        <input
+          id="input-phone"
+          class="field-input"
+          type="text"
+          placeholder="Search Customer Phone"
+          autocomplete="off"
+        />
+        <input
+          id="input-consignment"
+          class="field-input"
+          type="text"
+          placeholder="Search Consignment ID"
+          autocomplete="off"
+        />
+      </div>
+
+      <button id="checkBtn" class="check-btn" disabled>
+        Check Entry
+      </button>
+    </section>
+
+    <div class="divider"></div>
+
+    <section id="resultSection" class="result-section hidden">
+      <div class="result-header">
+        <span class="result-label">Result</span>
+      </div>
+      <div id="resultContent" class="result-content">
+        <!-- Populated dynamically -->
+      </div>
+    </section>
+
+    <section id="placeholderSection" class="placeholder-section">
+      <p class="placeholder-text">Enter business name and parcel info, then click Check Entry.</p>
+      <p class="placeholder-text">Tip: Copy a business name (Ctrl+C), then press <strong>Alt+Q</strong>.</p>
+    </section>
+
+    <footer class="panel-footer">♥ Developed by Abu Taher</footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

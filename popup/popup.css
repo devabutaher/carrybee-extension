@@ -1,0 +1,467 @@
+/* CarryBee Check Entry — Side Panel Styles */
+/* Matches CarryBee design: yellow primary, Inter font */
+
+:root {
+  --cb-yellow: #FFCC00;
+  --cb-yellow-hover: #E6B800;
+  --cb-yellow-ring: rgba(255, 204, 0, 0.3);
+  --cb-on-yellow: #161616;
+  --cb-border: #E4E4E7;
+  --cb-bg: #FFFFFF;
+  --cb-bg-alt: #F3F3F3;
+  --cb-success: #14AF14;
+  --cb-success-bg: #DCFFDC;
+  --cb-success-border: #B8E8B8;
+  --cb-error: #EB4242;
+  --cb-error-bg: #FFE5E5;
+  --cb-error-border: #F5B5B5;
+  --cb-warning: #E9A700;
+  --cb-warning-bg: #FFF6E5;
+  --cb-warning-border: #F5D98A;
+  --cb-text: #161616;
+  --cb-text-secondary: #5C5C5C;
+  --cb-text-muted: #7D7D7D;
+  --cb-radius: 6px;
+  --font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --transition-fast: 120ms cubic-bezier(0.32, 0.72, 0, 1);
+  --transition-base: 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-width: 320px;
+  font-family: var(--font-family);
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--cb-bg-alt);
+  color: var(--cb-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.panel-inner {
+  background: var(--cb-bg);
+  min-height: 100vh;
+  width: 320px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* Header */
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.panel-logo {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--cb-text);
+}
+
+/* Page status */
+.status-row {
+  margin-bottom: 12px;
+}
+
+.page-status {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--cb-text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page-status::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d1d5dc;
+}
+
+.page-status.ready {
+  color: var(--cb-success);
+}
+
+.page-status.ready::before {
+  background: var(--cb-success);
+}
+
+.page-status.error {
+  color: var(--cb-error);
+}
+
+.page-status.error::before {
+  background: var(--cb-error);
+}
+
+/* Divider */
+.divider {
+  height: 1px;
+  background: var(--cb-border);
+  margin: 12px 0;
+}
+
+/* Form section */
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--cb-text-muted);
+}
+
+.field-hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: #9ca3af;
+}
+
+/* Input styling — matches CarryBee */
+.field-input {
+  height: 40px;
+  border: 1px solid var(--cb-border);
+  border-radius: var(--cb-radius);
+  padding: 0 12px;
+  font-family: var(--font-family);
+  font-size: 13px;
+  color: var(--cb-text);
+  background: var(--cb-bg);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+  outline: none;
+  width: 100%;
+}
+
+.field-input::placeholder {
+  color: #9ca3af;
+}
+
+.field-input:focus {
+  border-color: #FC0;
+  box-shadow: 0 0 0 3px var(--cb-yellow-ring);
+}
+
+.field-input:hover:not(:focus) {
+  border-color: #9ca3af;
+}
+
+/* Check button — CarryBee yellow */
+.check-btn {
+  height: 40px;
+  border: none;
+  border-radius: var(--cb-radius);
+  background: var(--cb-yellow);
+  color: var(--cb-on-yellow);
+  font-family: var(--font-family);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-base), transform var(--transition-fast);
+  width: 100%;
+}
+
+.check-btn:hover:not(:disabled) {
+  background: var(--cb-yellow-hover);
+}
+
+.check-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.check-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.check-btn.loading {
+  background: #d1d5dc;
+}
+
+/* Result section */
+.result-section {
+  margin-top: 4px;
+}
+
+.result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.result-label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--cb-text-muted);
+}
+
+.result-content {
+  border-radius: var(--cb-radius);
+  padding: 12px;
+  font-size: 13px;
+}
+
+/* Result states */
+.result-found {
+  background: var(--cb-success-bg);
+  border: 1px solid var(--cb-success-border);
+}
+
+.result-not-found {
+  background: var(--cb-error-bg);
+  border: 1px solid var(--cb-error-border);
+}
+
+.result-multiple {
+  background: var(--cb-warning-bg);
+  border: 1px solid var(--cb-warning-border);
+}
+
+.result-error {
+  background: var(--cb-error-bg);
+  border: 1px solid var(--cb-error-border);
+}
+
+.result-loading {
+  background: var(--cb-bg-alt);
+  border: 1px solid var(--cb-border);
+}
+
+.result-icon {
+  font-size: 14px;
+  margin-right: 6px;
+}
+
+.result-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.result-found .result-title {
+  color: var(--cb-success);
+}
+
+.result-not-found .result-title,
+.result-error .result-title {
+  color: var(--cb-error);
+}
+
+.result-multiple .result-title {
+  color: var(--cb-warning);
+}
+
+.result-loading .result-title {
+  color: var(--cb-text-secondary);
+}
+
+.result-detail {
+  font-size: 12px;
+  color: var(--cb-text-secondary);
+  margin-bottom: 8px;
+}
+
+.result-detail:last-child {
+  margin-bottom: 0;
+}
+
+/* Result row — flex layout for consignment + button */
+.result-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.result-consignment {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cb-text);
+  background: var(--cb-bg);
+  border: 1px solid var(--cb-border);
+  border-radius: var(--cb-radius);
+  padding: 6px 10px;
+  display: inline-block;
+  cursor: pointer;
+  transition: border-color var(--transition-base);
+}
+
+.result-consignment:hover {
+  border-color: var(--cb-yellow);
+}
+
+.result-consignment.copied {
+  border-color: var(--cb-success);
+  color: var(--cb-success);
+}
+
+/* View button — CarryBee yellow */
+.view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--cb-radius);
+  background: var(--cb-yellow);
+  color: var(--cb-on-yellow);
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-base), transform var(--transition-fast);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.view-btn:hover {
+  background: var(--cb-yellow-hover);
+}
+
+.view-btn:active {
+  transform: scale(0.97);
+}
+
+/* Retry button */
+.retry-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--cb-border);
+  border-radius: var(--cb-radius);
+  background: var(--cb-bg);
+  color: var(--cb-text);
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--transition-base), background var(--transition-base);
+}
+
+.retry-btn:hover {
+  border-color: var(--cb-yellow);
+  background: var(--cb-yellow-ring);
+}
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #d1d5dc;
+  border-top-color: var(--cb-yellow);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 6px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Placeholder */
+.placeholder-section {
+  text-align: center;
+  padding: 16px 0;
+}
+
+.placeholder-text {
+  font-size: 10px;
+  color: #9ca3af;
+  line-height: 1.7;
+}
+
+.placeholder-text + .placeholder-text {
+  margin-top: 4px;
+}
+
+/* Hidden */
+.hidden {
+  display: none;
+}
+
+/* Footer */
+.panel-footer {
+  font-size: 10px;
+  color: #9ca3af;
+  letter-spacing: 0.3px;
+  text-align: center;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--cb-border);
+}
+
+/* Open CarryBee page link (shown when no tab / wrong page) */
+.open-page-section {
+  font-size: 11px;
+  color: var(--cb-text-secondary);
+  margin-bottom: 10px;
+}
+
+.open-page-link {
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  color: #0b6dd8;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.open-page-link:hover {
+  color: #0a5cb8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

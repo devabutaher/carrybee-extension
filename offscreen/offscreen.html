@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>CarryBee clipboard reader</title>
+</head>
+<body>
+  <!-- execCommand('paste') target — Chrome's official offscreen-clipboard pattern -->
+  <textarea id="pasteArea" style="position: absolute; left: -99999px; top: -99999px;"></textarea>
+  <script src="offscreen.js"></script>
+</body>
+</html>

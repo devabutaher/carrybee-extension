@@ -1,196 +1,113 @@
-# CarryBee Auto-Flow (Chrome Extension)
+# CarryBee Check Entry
 
-Automates the Order Processing flow on CarryBee. Supports 4 processing modes with automatic weight entry, printing, sorting, and consignment ID tracking.
+Chrome extension that opens a small pinned popup window and checks if a
+parcel exists for a given business on CarryBee Order Processing.
 
-## Quick Start
+## Installation
 
-1. `chrome://extensions` → **Developer mode** ON
-2. **Load unpacked** → select `carrybee-extension` folder
-3. Go to CarryBee Order Processing page, **refresh**
-4. Click extension icon → toggle ON → choose mode → start processing
+No build step needed. Direct load:
 
----
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked**
+4. Select this folder (`carrybee-check-entry`)
 
-## 4 Processing Modes
+## Usage
 
-### Mode 1: Merchant Order ID
-- Scan/type Merchant ID → exactly 1 row → auto weight focus
-- You enter weight + press Enter → auto print → auto sort
-- With **Skip weight step** ON: no weight prompt, direct print+sort
-- Field auto-selects, next scan replaces old ID
+1. Open CarryBee in one tab: `https://hive.carrybee.com/order-processing`
+2. Open Google Sheet in another tab (for business names)
+3. Click the extension icon (or press **Alt+Q**) → a small window opens at
+   the top-right of the active window, pinned above other windows
+4. Enter one of: **Customer Phone Number** or **Consignment ID**
+5. Click **Check Entry** or press **Enter**
+6. Result shows:
+   - ✓ **Entry Found** — with "Open Tab" button + copyable consignment ID
+   - ✗ **No Entry** — no parcel matches
+   - ✗ **Business Not Found** — no business matches the name you entered
+   - ⚠ **Multiple Businesses / Entries** — be more specific
 
-### Mode 2: Customer Phone
-- Type phone number (typed only, no scan) → extension auto-searches
-- Input settles (400ms pause) → digits checked against parcel phone
-- Mismatch → "Phone number mismatch" badge (2s) → stops
-- Match → "Parcel found — press Enter" → press Enter → auto weight focus
-- Enter right after typing counts as confirm (no second Enter needed)
-- You enter weight + press Enter → auto print → auto sort
-- **Skip weight step** ON: skip weight, direct print+sort
-- Field auto-selects for next number
-
-### Mode 3: COD Quantity
-- Type COD amount → field appears at bottom-right
-- Enter quantity (1-200) → auto loops print+sort (no weight)
-- Progress: "Processing 5/100"
-- Stop button available during processing
-- Done: "✓ 100 sorted"
-
-### Mode 4: Consignment ID
-- Scan/type Consignment ID → exactly 1 row → auto weight focus
-- You enter weight + press Enter → auto print → auto sort
-- With **Skip weight step** ON: no weight prompt, direct print+sort
-- Field auto-selects, next scan replaces old ID
-
----
-
-## Consignment ID Tracking
-
-### Auto-Tracking (all modes)
-- Every successful sort captures Consignment ID
-- Grouped by **business name**
-- Persists in browser (until manually cleared)
-- Daily auto-reset at configured time (default 7pm BDT)
-
-### Popup Section: Sorted Consignments
-1. **Total counter** — green, sum across ALL businesses (top-right)
-2. **Business dropdown** — select business (with per-business count)
-3. **List** — one Consignment ID per line (monospace font)
-4. **Copy All** — copies to clipboard (paste into Sheets)
-5. **Clear** — delete all data (confirm first)
-
-Tracking data (total, dropdown, list) is visible from **any tab/page** —
-only toggle + mode buttons need the Order Processing page.
-
----
-
-## Data Storage
-
-**Format:**
-```json
-{
-  "Daraz Bangladesh": [
-    { "id": "F0731...", "at": 1719400000000 },
-    { "id": "F0732...", "at": 1719400060000 }
-  ],
-  "Fiyona Mart": [
-    { "id": "F0801...", "at": 1719400120000 }
-  ]
-}
+**Fast workflow (Alt+Q, mouse-free):**
+```
+Sheet: select business name → Ctrl+C → Alt+Q
+       window opens/raises, Business Name auto-filled,
+       caret in the Phone input → type the number → Enter
 ```
 
-- Each entry has `id` (consignment ID) and `at` (timestamp)
-- Per-merchant isolation (Daraz IDs ≠ Fiyona Mart IDs)
-- Survives page reload (until manually cleared)
-- Max 1000 entries per business (oldest removed first)
-- Auto-resets daily at configured time (BDT timezone)
+- `Alt+Q` reads the clipboard via the `clipboardRead` + `offscreen` + `scripting` permissions — whatever you copied last is what gets filled, so keep the copy-then-shortcut order
+- Rebind the shortcut at `chrome://extensions/shortcuts` if `Alt+Q` clashes with another extension's shortcut
+- The window stays pinned (`alwaysOnTop`) until closed; move it like any normal window
 
----
+**Not ready?** If no CarryBee tab is open (or the tab is on a different page), the window shows an **"Open Order Processing"** link — one click opens the right page and the window becomes ready automatically.
 
-## Settings
+**Note:** The window searches the CarryBee tab in the background. You can stay on Google Sheet while checking.
 
-Right-click extension icon → **Options** to configure:
+## Pages
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Show main badge | ON | Display status badge on processing page |
-| Show progress badge (COD) | ON | Display processing count during COD batch |
-| Daily reset time | 7:00 PM BDT | Any time — Hour (1-12) / Minute / AM-PM picker |
-| Daily reset | ON | Toggle auto-clear of consignments daily |
-| Skip weight step | OFF | Print+sort directly, no weight entry |
+| Page | URL | What happens |
+|------|-----|-------------|
+| List | `/order-processing?status=...` | Searches business → navigates to store → searches parcel |
+| Store (same business) | `/order-processing/store/{id}` | Searches parcel directly (business remembered per tab) |
+| Store (different/unknown business) | `/order-processing/store/{id}` | Goes back to the list page first → searches the new business → opens its store → searches parcel |
 
----
+Navigation steps are driven by the window's script. After every hop it asks
+the CarryBee tab's content script to confirm the page is actually ready
+(search input rendered) before sending the next command — no fixed-guess
+timing, so navigation races no longer happen.
 
-## Error Handling
+## Search correctness
 
-### Network Failures
-- Print/Sort wait **up to 12 seconds** for toast
-- If no toast: badge shows error, cycle stops
-- Manual: retry or continue with next parcel
+Row counting is verified against your search term. Rows only count as results
+when their text actually contains the queried business name / parcel ID, so a
+stale or unfiltered table (e.g. all 600 businesses) can never be reported as a
+result. If results don't verify, the search is retried once automatically.
 
-### Search Errors
-- **No parcel found** → badge shows when search returns 0 rows
-- **Multiple parcels found** → badge shows when row count ≠ 1 (stable, ≤1s)
-- **Phone number mismatch** → judged after 400ms typing settle, badge 2s
-- **Empty field** after backspace → no error badge
+## Debugging
 
-### COD Mode Edge Cases
-- Quantity \<1 or >200 → error badge, re-prompt
-- Network error during print/sort → error badge, stops batch
-- Stop button → pauses, shows "Stopped at X/Y"
+Per-stage timing is logged to the console at debug level:
 
----
+- **Window UI**: click inside the window → F12 → Console (look for `[CE panel]`)
+- **CarryBee tab**: DevTools → Console (look for `[CE content]`)
+- **Background / offscreen**: `chrome://extensions` → CarryBee → *service worker* / *offscreen* Inspect (look for `[CE bg]` / `[CE offscreen]`)
 
-## Keyboard Shortcuts
+Logs show hop count, search settle time, row counts, clipboard read method, and the final result.
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+Shift+1` | Consignment ID mode |
-| `Ctrl+Shift+2` | Customer Phone mode |
-| `Ctrl+Shift+3` | Merchant Order ID mode |
-| `Ctrl+Shift+4` | COD Quantity mode |
+## Window size
 
-Press the **same** shortcut again while that mode is active → extension **OFF**.
-Pressing a different mode shortcut switches mode (ON if currently off).
+The content is a fixed **320px** column inside a fixed-size popup window
+(~340×660) — extension-created (`chrome.windows.create`) and pinned with
+`alwaysOnTop`. Tune `PANEL_WIDTH`/`PANEL_HEIGHT` in `background.js` if needed.
 
----
-
-## UI Positioning
-
-- **Main Badge** (top-right, ~208px down) — status messages
-- **COD Progress Badge** (top-right, ~244px down) — "Processing X/Y"
-- **Quantity Input** (bottom-right) — visible only in COD mode, Process + Stop buttons
-- **Badges don't overlap** — stacked vertically to right side
-
----
-
-## Per-Tab & Safety
-
-- Toggle ON/OFF is **per-tab only** — other tabs unaffected
-- **Page reload** → extension OFF (safety)
-- **Multiple parcel rows** → auto-advance only if exactly 1 row
-
----
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| Extension not ready | Reload the page and try again |
-| Phone mode not working | Make sure you type phone number, extension auto-searches |
-| Weight input not opening | Check if row actually exists (1 result) |
-| COD quantity input missing | Only appears after COD mode selected |
-| Data not saving | Check storage permissions, extension must be ON |
-| Sort count mismatch | Network delays may cause resubmit, check manually |
-
----
-
-## Project Structure
+## Files
 
 ```
-carrybee-extension/
-├── manifest.json          # Chrome extension manifest (MV3)
-├── shared.js              # Shared utils — daily reset math (BDT)
-├── background.js          # Service worker — shortcuts + daily reset
-├── content.js             # Content script — main automation logic
-├── content.css            # Content script styles (badges, COD input)
-├── popup.html             # Extension popup UI
-├── popup.js               # Popup controller
-├── popup.css              # Popup styles
-├── options.html           # Settings page
-├── options.js             # Settings controller
-├── options.css            # Settings styles
-├── icons/
-│   ├── icon16.png
-│   ├── icon48.png
-│   └── icon128.png
-└── .github/
-    └── workflows/
-        └── build.yml      # CI/CD — build & release
+carrybee-check-entry/
+├── manifest.json          MV3 + Alt+Q command
+├── background.js          Pinned window open/focus + clipboard fill orchestration
+├── content.js             Page detection + search + step-based navigation
+├── popup/
+│   ├── index.html         UI structure (320px, phone + consignment inputs)
+│   ├── popup.css          CarryBee-matched styling
+│   └── popup.js           Driver loop + result display + clipboard fill
+├── offscreen/             Hidden clipboard reader (last-resort path)
+├── icons/                 Yellow magnifier (16/48/128 + search.png master art)
+├── README.md
+└── .opencode/plan.md      Full plan + office tasks
 ```
 
----
+## What's Left (Office Tasks)
 
-## Owner
+See `.opencode/plan.md` for full details.
 
-**Abu Taher** — [Update on GitHub](https://github.com/devabutaher/carrybee-extension)
+1. Test with real business names
+2. Verify the automated search-retry behavior when the CarryBee list renders stale rows
+3. Test list → store navigation (no "tab not responding" error)
+4. Test store → list navigation when the business name changes
+5. Verify store page search works (phone search + consignment search)
+6. Test edge cases (business exists but no parcels)
+7. Verify **Alt+Q** opens/raises the pinned window, auto-fills Business Name, and puts the caret in the Phone input — while Google Sheet has keyboard focus. Also test: window already open + Alt+Q, no clipboard content, and non-business clipboard text
+8. Confirm window size comfort on your monitor (tune `PANEL_WIDTH`/`PANEL_HEIGHT` in `background.js`)
+9. Verify the **"Open Order Processing"** link appears when no CarryBee tab exists and becomes ready after clicking it
+
+## Git / Publish
+
+Git setup happens after manual testing is done (see `.opencode/plan.md`).

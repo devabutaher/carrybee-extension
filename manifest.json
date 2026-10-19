@@ -1,54 +1,35 @@
 {
   "manifest_version": 3,
-  "name": "CarryBee Auto-Flow",
-  "version": "1.2.0",
-  "description": "Automates the Order Processing flow on CarryBee. Supports Merchant Order ID, Customer Phone, COD Quantity, and Consignment ID modes.",
-  "minimum_chrome_version": "109",
-  "permissions": ["storage", "activeTab", "alarms"],
+  "name": "CarryBee Check Entry",
+  "description": "Check if a parcel exists for a given business on CarryBee Order Processing.",
+  "version": "1.3.0",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "clipboardRead",
+    "offscreen"
+  ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_popup": "popup.html",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+    "default_popup": "popup/index.html",
+    "default_icon": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }
+  },
+  "commands": {
+    "focus-entry": {
+      "suggested_key": { "default": "Alt+Q" },
+      "description": "Open/raise the Check Entry window and fill the Business Name field from the clipboard"
     }
   },
   "content_scripts": [
     {
-      "matches": ["*://hive.carrybee.com/order-processing/*", "*://hive.carrybee.com/sub-sort/*"],
-      "js": ["shared.js", "content.js"],
-      "css": ["content.css"],
+      "matches": ["*://hive.carrybee.com/order-processing*"],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
   ],
-  "options_ui": {
-    "page": "options.html",
-    "open_in_tab": true
-  },
-  "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  },
-  "commands": {
-    "set-consignment-mode": {
-      "suggested_key": { "default": "Ctrl+Shift+1" },
-      "description": "Set Consignment ID mode"
-    },
-    "set-phone-mode": {
-      "suggested_key": { "default": "Ctrl+Shift+2" },
-      "description": "Set Customer Phone mode"
-    },
-    "set-merchant-mode": {
-      "suggested_key": { "default": "Ctrl+Shift+3" },
-      "description": "Set Merchant Order ID mode"
-    },
-    "set-cod-mode": {
-      "suggested_key": { "default": "Ctrl+Shift+4" },
-      "description": "Set COD Quantity mode"
-    }
-  }
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }
 }
