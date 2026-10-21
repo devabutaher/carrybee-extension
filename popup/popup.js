@@ -56,24 +56,6 @@
     });
 
     findCarryBeeTab();
-    autoFillOnOpen();
-  }
-
-  // When the page opens as the ACTION popup (icon click / Alt+Q), the
-  // document holds focus from the first instant → read the clipboard here
-  // and fill Business Name. A few retries cover slow focus/permission
-  // settle; if no clipboard text lands, the caret stays in Business Name.
-  async function autoFillOnOpen() {
-    for (let i = 0; i < 5; i++) {
-      await sleep(150);
-      const filled = await fillBusinessFromClipboard();
-      if (filled) {
-        dbg('auto-fill on open succeeded (attempt', i + 1, ')');
-        return;
-      }
-    }
-    inputBusiness.focus();
-    updateButtonState();
   }
 
   function updateButtonState() {
@@ -520,13 +502,24 @@
   }
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    // Alt+Q path: the panel (attempt to) read the clipboard itself.
     if (msg && msg.type === 'CE_FOCUS_INPUT') {
       fillBusinessFromClipboard().then(sendResponse);
       return true; // async — true = filled here, false = needs offscreen help
     }
+    // Alt+Q fallback: the background read the clipboard elsewhere.
     if (msg && msg.type === 'CE_FILL_BUSINESS' && msg.text && msg.text.trim()) {
       fillBusinessFromText(msg.text);
       sendResponse(true);
+      return;
+    }
+    // Auto-run path (Alt+W): the number came from the Sheet clipboard,
+    // so kick the check off immediately — no typing, no clicking.
+    if (msg && msg.type === 'CE_FILL_PHONE' && msg.text && msg.text.trim()) {
+      inputPhone.value = msg.text.trim();
+      updateButtonState();
+      sendResponse(true);
+      handleCheck(); // async — fires and forgets
       return;
     }
   });

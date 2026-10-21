@@ -1,6 +1,6 @@
 # CarryBee Check Entry
 
-Chrome extension that opens a small pinned popup window and checks if a
+Chrome extension that opens a **side panel** and checks if a
 parcel exists for a given business on CarryBee Order Processing.
 
 ## Installation
@@ -16,8 +16,7 @@ No build step needed. Direct load:
 
 1. Open CarryBee in one tab: `https://hive.carrybee.com/order-processing`
 2. Open Google Sheet in another tab (for business names)
-3. Click the extension icon (or press **Alt+Q**) → a small window opens at
-   the top-right of the active window, pinned above other windows
+3. Click the extension icon → the side panel opens, docked beside the page
 4. Enter one of: **Customer Phone Number** or **Consignment ID**
 5. Click **Check Entry** or press **Enter**
 6. Result shows:
@@ -26,20 +25,24 @@ No build step needed. Direct load:
    - ✗ **Business Not Found** — no business matches the name you entered
    - ⚠ **Multiple Businesses / Entries** — be more specific
 
-**Fast workflow (Alt+Q, mouse-free):**
+**Fast workflows (mouse-free, shortcuts while Google Sheet is focused):**
 ```
-Sheet: select business name → Ctrl+C → Alt+Q
-       window opens/raises, Business Name auto-filled,
-       caret in the Phone input → type the number → Enter
+Sheet: business name → Ctrl+C → Alt+Q    → Business Name auto-filled
+Sheet: click the Phone field → type the number → Enter
+```
+```
+Phone, fully hands-free:
+Sheet: type the number into any free cell → Ctrl+C → Alt+W
+       → Phone auto-filled + the search runs automatically
 ```
 
-- `Alt+Q` reads the clipboard via the `clipboardRead` + `offscreen` + `scripting` permissions — whatever you copied last is what gets filled, so keep the copy-then-shortcut order
-- Rebind the shortcut at `chrome://extensions/shortcuts` if `Alt+Q` clashes with another extension's shortcut
-- The window stays pinned (`alwaysOnTop`) until closed; move it like any normal window
+- `Alt+Q` / `Alt+W` read the clipboard via the `clipboardRead` + `offscreen` + `scripting` permissions — whatever you copied last is what gets filled, so keep the copy-then-shortcut order
+- Rebind the shortcuts at `chrome://extensions/shortcuts` if `Alt+Q` / `Alt+W` clash with another extension's shortcut
+- The side panel never closes and keeps its state while you work — it stays visible beside the Sheet
 
-**Not ready?** If no CarryBee tab is open (or the tab is on a different page), the window shows an **"Open Order Processing"** link — one click opens the right page and the window becomes ready automatically.
+**Not ready?** If no CarryBee tab is open (or the tab is on a different page), the panel shows an **"Open Order Processing"** link — one click opens the right page and the panel becomes ready automatically.
 
-**Note:** The window searches the CarryBee tab in the background. You can stay on Google Sheet while checking.
+**Note:** The panel searches the CarryBee tab in the background. You can stay on Google Sheet while checking.
 
 ## Pages
 
@@ -49,7 +52,7 @@ Sheet: select business name → Ctrl+C → Alt+Q
 | Store (same business) | `/order-processing/store/{id}` | Searches parcel directly (business remembered per tab) |
 | Store (different/unknown business) | `/order-processing/store/{id}` | Goes back to the list page first → searches the new business → opens its store → searches parcel |
 
-Navigation steps are driven by the window's script. After every hop it asks
+Navigation steps are driven by the panel's script. After every hop it asks
 the CarryBee tab's content script to confirm the page is actually ready
 (search input rendered) before sending the next command — no fixed-guess
 timing, so navigation races no longer happen.
@@ -65,24 +68,24 @@ result. If results don't verify, the search is retried once automatically.
 
 Per-stage timing is logged to the console at debug level:
 
-- **Window UI**: click inside the window → F12 → Console (look for `[CE panel]`)
+- **Panel UI**: click inside the panel → F12 (or right-click → Inspect) → Console (look for `[CE panel]`)
 - **CarryBee tab**: DevTools → Console (look for `[CE content]`)
 - **Background / offscreen**: `chrome://extensions` → CarryBee → *service worker* / *offscreen* Inspect (look for `[CE bg]` / `[CE offscreen]`)
 
 Logs show hop count, search settle time, row counts, clipboard read method, and the final result.
 
-## Window size
+## Panel layout
 
-The content is a fixed **320px** column inside a fixed-size popup window
-(~340×660) — extension-created (`chrome.windows.create`) and pinned with
-`alwaysOnTop`. Tune `PANEL_WIDTH`/`PANEL_HEIGHT` in `background.js` if needed.
+The content is a fixed **320px** column inside the browser's side panel —
+docked by Chrome, resizable only by the panel splitter. Chrome decides the
+outer chrome; the CSS keeps the column tidy at any panel width.
 
 ## Files
 
 ```
 carrybee-check-entry/
-├── manifest.json          MV3 + Alt+Q command
-├── background.js          Pinned window open/focus + clipboard fill orchestration
+├── manifest.json          MV3 + side panel + Alt+Q / Alt+W commands
+├── background.js          Side panel open + clipboard fill orchestration
 ├── content.js             Page detection + search + step-based navigation
 ├── popup/
 │   ├── index.html         UI structure (320px, phone + consignment inputs)
@@ -104,10 +107,12 @@ See `.opencode/plan.md` for full details.
 4. Test store → list navigation when the business name changes
 5. Verify store page search works (phone search + consignment search)
 6. Test edge cases (business exists but no parcels)
-7. Verify **Alt+Q** opens/raises the pinned window, auto-fills Business Name, and puts the caret in the Phone input — while Google Sheet has keyboard focus. Also test: window already open + Alt+Q, no clipboard content, and non-business clipboard text
-8. Confirm window size comfort on your monitor (tune `PANEL_WIDTH`/`PANEL_HEIGHT` in `background.js`)
+7. Verify **Alt+Q** auto-fills Business Name (panel open or closed) while Google Sheet has keyboard focus
+8. Verify **Alt+W** auto-fills Phone + runs the search — hands-free end to end
 9. Verify the **"Open Order Processing"** link appears when no CarryBee tab exists and becomes ready after clicking it
 
 ## Git / Publish
 
-Git setup happens after manual testing is done (see `.opencode/plan.md`).
+Source lives at `github.com/devabutaher/carrybee-extension`, branch
+`check-entry`. Tags (`v*`) trigger the GitHub Action that zips the
+extension and attaches it to a release for direct download.
