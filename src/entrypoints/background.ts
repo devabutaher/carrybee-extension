@@ -7,11 +7,15 @@
 
 import {
   addConsignment,
+  addPendingCheck,
   addPrintLock,
   checkDailyReset,
+  getPendingChecks,
   getPrintLocks,
   getSettings,
+  prunePendingChecks,
   prunePrintLocks,
+  removePendingCheck,
   storageDB,
 } from '~/utils/storage';
 
@@ -53,15 +57,18 @@ export default defineBackground(() => {
   browser.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === 'dailyReset') {
       await checkDailyReset();
-      // Hourly piggyback: prune print locks older than 3 days. Intentionally
-      // separate from the daily reset — locks must not die at reset time.
+      // Hourly piggyback: prune print locks + pending checks older than 3 days.
+      // Both intentionally separate from the daily reset — consignment data
+      // clears at reset time; these must not die there.
       await prunePrintLocks();
+      await prunePendingChecks();
     }
   });
 
   // Also check on service worker startup
   checkDailyReset();
   prunePrintLocks();
+  prunePendingChecks();
 
   // ============ MESSAGE HANDLING ============
 
@@ -93,6 +100,30 @@ export default defineBackground(() => {
 
     if (msg.type === 'CB_GET_PRINT_LOCKS') {
       getPrintLocks().then((locks) => sendResponse({ locks }));
+      return true;
+    }
+
+    if (msg.type === 'CB_ADD_PENDING_CHECK') {
+      addPendingCheck(
+        String(msg.consignmentId),
+        String(msg.business || ''),
+        msg.kind === 'sort' ? 'sort' : 'print',
+        Number(msg.timestamp) || Date.now()
+      )
+        .then(() => sendResponse({ ok: true }))
+        .catch(() => sendResponse({ ok: false }));
+      return true;
+    }
+
+    if (msg.type === 'CB_GET_PENDING_CHECKS') {
+      getPendingChecks().then((grouped) => sendResponse({ grouped }));
+      return true;
+    }
+
+    if (msg.type === 'CB_REMOVE_PENDING_CHECK') {
+      removePendingCheck(String(msg.consignmentId))
+        .then(() => sendResponse({ ok: true }))
+        .catch(() => sendResponse({ ok: false }));
       return true;
     }
 

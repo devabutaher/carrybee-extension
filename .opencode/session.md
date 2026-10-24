@@ -1,7 +1,12 @@
 # Session Context
 
-Session: COD double-print fix (v2.1.2)
+Session: COD double-print fix + v2.1.3 release
 Date: 2026-10-19
+
+## Release v2.1.3 (shipped)
+- Carrybee branding rename (docs/popup/options/manifest/comments; Dexie DB name untouched)
+- Tag v2.1.3 pushed → GitHub Action release → carrybee-v2.zip attached
+- https://github.com/devabutaher/carrybee-extension/releases/tag/v2.1.3
 
 ## What was done
 Full COD-mode rework (see plan.md):

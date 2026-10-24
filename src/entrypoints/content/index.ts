@@ -113,6 +113,7 @@ export default defineContentScript({
     let codQuantityCounter = 0;
     let codQuantityTarget = 0;
     let codStopRequested = false;
+    let codUnclearCounter = 0;
     let lastToastAt = 0;
     let lastToastEvents: Array<{ text: string; at: number }> = [];
     let currentBusinessName: string | null = null;
@@ -162,6 +163,31 @@ export default defineContentScript({
           confirmed: level === "confirmed",
           timestamp: Date.now(),
         })
+        .catch(() => {});
+    }
+
+    /** User-facing popup record: printed but print/sort unverified. */
+    function savePendingCheck(
+      consignmentId: string | null,
+      kind: "print" | "sort",
+    ): void {
+      if (!consignmentId || !currentBusinessName) return;
+      chrome.runtime
+        .sendMessage({
+          type: "CB_ADD_PENDING_CHECK",
+          consignmentId,
+          business: currentBusinessName,
+          kind,
+          timestamp: Date.now(),
+        })
+        .catch(() => {});
+    }
+
+    /** Sort later confirmed → clear this parcel's pending check record. */
+    function clearPendingCheck(consignmentId: string | null): void {
+      if (!consignmentId) return;
+      chrome.runtime
+        .sendMessage({ type: "CB_REMOVE_PENDING_CHECK", consignmentId })
         .catch(() => {});
     }
 
@@ -294,14 +320,23 @@ export default defineContentScript({
 
     // ============ TOAST WATCHER ============
 
-    const toastTextByNode = new WeakMap<Element, string>();
+    /**
+     * Sonner recycles toast DOM nodes, so the old per-node "seen" dedupe could
+     * silently eat an identical consecutive toast ("Sending to printer…" on the
+     * same recycled node) — the variant that made "Print failed" appear even
+     * though the toast was visible. New rule: a node+text combination is only
+     * suppressed within a 300ms window; anything later records again.
+     */
+    const toastSeenByNode = new WeakMap<Element, { text: string; at: number }>();
     let toastDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const TOAST_DEDUP_WINDOW_MS = 300;
 
-    function recordToast(text: string): void {
+    function recordToast(text: string, at: number): void {
       if (!text) return;
-      lastToastEvents.push({ text, at: Date.now() });
+      lastToastEvents.push({ text, at });
       if (lastToastEvents.length > 50) lastToastEvents.shift();
-      lastToastAt = Date.now();
+      lastToastAt = at;
+      console.log("[Carrybee] toast:", text);
     }
 
     const isPrintSentToast = (t: string): boolean =>
@@ -311,13 +346,16 @@ export default defineContentScript({
     const isWeightToast = (t: string): boolean => t.includes("weight");
 
     function processToasts(): void {
+      const now = Date.now();
       const toasts = Array.from(document.querySelectorAll(SEL.toast));
       for (const t of toasts) {
         const text = (t.textContent || "").trim();
         if (!text) continue;
-        if (toastTextByNode.get(t) === text) continue;
-        toastTextByNode.set(t, text);
-        recordToast(text);
+        const prev = toastSeenByNode.get(t);
+        if (prev && prev.text === text && now - prev.at < TOAST_DEDUP_WINDOW_MS)
+          continue;
+        toastSeenByNode.set(t, { text, at: now });
+        recordToast(text, now);
 
         if (isSortToast(text.toLowerCase())) {
           // Snapshot before restarting auto-flow: handleManualSortCompletion()
@@ -692,6 +730,11 @@ export default defineContentScript({
         if (!printToast) {
           setStatus("Print failed", "error");
           await sleep(1000);
+          // Toast missed/absent while the print may still have fired. Pending
+          // lock (set before the click) already blocks any re-print; record
+          // the parcel for the popup "Pending check" list and let the COD
+          // batch skip it instead of killing the whole batch.
+          savePendingCheck(consignmentId, "print");
           return { ok: false, reason: "print-timeout" };
         }
 
@@ -732,6 +775,7 @@ export default defineContentScript({
       // list by the caller — the user checks/sorts it manually.
       setStatus("Sort failed", "error");
       await sleep(1000);
+      savePendingCheck(consignmentId, "sort");
       return { ok: true, unverified: true };
     }
 
@@ -841,6 +885,8 @@ export default defineContentScript({
       }
 
       setStatus("✓ Done", "success");
+      // Parcel fully sorted now — drop any stale pending check record.
+      clearPendingCheck(consignmentId);
       state = "IDLE";
 
       refocusCurrentInput();
@@ -1036,6 +1082,7 @@ export default defineContentScript({
       codQuantityCounter = 0;
       codQuantityTarget = qty;
       codStopRequested = false;
+      codUnclearCounter = 0;
       currentBusinessName = getBusinessName();
 
       const input = createCodQuantityInput();
@@ -1053,34 +1100,43 @@ export default defineContentScript({
     async function finishCodBatch(
       myToken: number,
       outcome: "done" | "stopped" | "stuck" | "no-rows",
+      stuckCount = 0,
     ): Promise<void> {
       await flushBatchConsignments();
       if (myToken !== cycleToken) return;
 
+      const staleParts: string[] = [];
+      if (codUnclearCounter > 0) staleParts.push(`${codUnclearCounter} unclear`);
+      if (stuckCount > 0) staleParts.push(`${stuckCount} stuck`);
+      const staleSuffix = staleParts.length
+        ? ` · ${staleParts.join(", ")} (check popup)`
+        : "";
+
       if (outcome === "no-rows") {
         setCodProgress(null);
         if (codQuantityCounter > 0) {
-          setStatus(`✓ ${codQuantityCounter} parcels sorted`, "success");
+          setStatus(
+            `✓ ${codQuantityCounter} parcels sorted${staleSuffix}`,
+            codUnclearCounter ? "info" : "success",
+          );
           await sleep(CFG.badgeDisplayMs);
         } else {
           setStatus("No more rows", "error");
           await sleep(2000);
         }
       } else if (outcome === "stuck") {
-        setCodProgress(
-          `✓ ${codQuantityCounter} sorted · 1 stuck (check manually)`,
-        );
+        setCodProgress(`✓ ${codQuantityCounter} sorted${staleSuffix}`);
         setStatus("Sort failed — stopped", "error");
         await sleep(CFG.badgeDisplayMs);
         setCodProgress(null);
       } else if (outcome === "stopped") {
-        setCodProgress(`✓ ${codQuantityCounter} sorted`);
-        setStatus("Stopped", "info");
+        setCodProgress(`✓ ${codQuantityCounter} sorted${staleSuffix}`);
+        setStatus("Stopped", codUnclearCounter ? "info" : "working");
         await sleep(CFG.badgeDisplayMs);
         setCodProgress(null);
       } else {
-        setCodProgress(`✓ ${codQuantityCounter} sorted`);
-        setStatus("✓ Done", "success");
+        setCodProgress(`✓ ${codQuantityCounter} sorted${staleSuffix}`);
+        setStatus("✓ Done", codUnclearCounter ? "info" : "success");
         await sleep(CFG.badgeDisplayMs);
         setCodProgress(null);
       }
@@ -1130,7 +1186,17 @@ export default defineContentScript({
         if (myToken !== cycleToken) return;
 
         if (!result.ok) {
-          batchOutcome = "done";
+          if (result.reason === "print-timeout") {
+            // Print toast unverified — parcel is pending-locked so it can
+            // never double-print. Record already saved to the popup list.
+            // Skip this parcel, keep processing the rest of the batch.
+            codUnclearCounter++;
+            setCodProgress(
+              `Processing ${codQuantityCounter + 1}/${codQuantityTarget} · 1 skipped`,
+            );
+            continue;
+          }
+          // Any other failure is fatal for the batch (real errors only).
           await flushBatchConsignments();
           setCodProgress(null);
           await sleep(2500);
@@ -1159,6 +1225,9 @@ export default defineContentScript({
         await waitFor(() => !document.body.contains(row), { timeout: 2000 });
         if (myToken !== cycleToken) return;
 
+        // Fully sorted now — drop any stale pending check for this parcel.
+        clearPendingCheck(consignmentId);
+
         codQuantityCounter++;
 
         if (codStopRequested) {
@@ -1168,7 +1237,7 @@ export default defineContentScript({
       }
 
       if (myToken !== cycleToken) return;
-      await finishCodBatch(myToken, batchOutcome);
+      await finishCodBatch(myToken, batchOutcome, batchOutcome === "stuck" ? 1 : 0);
     }
 
     // ============ INPUT LISTENERS ============

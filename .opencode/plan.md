@@ -1,4 +1,10 @@
-# CarryBee Auto-Flow — Plan
+# Carrybee Auto-Flow — Plan (v2.1.3 released)
+
+## Done (release v2.1.3)
+- ✅ Branding rename CarryBee → Carrybee across docs/popup/options/manifest/comments (Dexie DB name `CarryBeeDB` intentionally untouched — rename would orphan user data).
+- ✅ Version 2.1.3, tag pushed, GitHub Action release success.
+- ✅ Release: https://github.com/devabutaher/carrybee-extension/releases/tag/v2.1.3 (carrybee-v2.zip attached).
+- Note: during rebase onto origin/v2 (v2.1.1), metadata conflicts resolved to v2.1.3 + Carrybee.
 
 ## Done
 - ✅ COD double-print bug: root cause was early break in sort-poll loop (`!stillLoading`) → row stayed in DOM → reprocessed → reprinted.

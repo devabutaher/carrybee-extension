@@ -22,10 +22,19 @@ interface PrintLockRow {
   confirmed: 0 | 1;
 }
 
+/** User-facing "check manually" record: printed but print/sort unverified. */
+interface PendingCheckRow {
+  id: string; // consignment ID
+  business: string;
+  kind: 'print' | 'sort';
+  at: number;
+}
+
 const db = new Dexie('CarryBeeDB') as Dexie & {
   consignments: EntityTable<ConsignmentRow, 'id'>;
   settings: EntityTable<SettingsRow, 'key'>;
   printLocks: EntityTable<PrintLockRow, 'id'>;
+  pendingChecks: EntityTable<PendingCheckRow, 'id'>;
 };
 
 db.version(1).stores({
@@ -37,6 +46,13 @@ db.version(2).stores({
   consignments: '++id, business, consignmentId, at, [business+consignmentId]',
   settings: 'key',
   printLocks: 'id, at',
+});
+
+db.version(3).stores({
+  consignments: '++id, business, consignmentId, at, [business+consignmentId]',
+  settings: 'key',
+  printLocks: 'id, at',
+  pendingChecks: 'id, business, at',
 });
 
 export const storageDB = db;
@@ -217,6 +233,48 @@ export async function getPrintLocks(): Promise<Record<string, boolean>> {
   const locks: Record<string, boolean> = {};
   for (const row of rows) locks[row.id] = row.confirmed === 1;
   return locks;
+}
+
+// ============ Pending Checks ============
+// User-facing "check manually" list shown in the popup, grouped by business.
+// kind 'print' → print click happened but the print toast was never verified.
+// kind 'sort'  → print verified but the sort never confirmed (loading/network).
+// Auto-removed when the parcel's sort later confirms; 3-day TTL otherwise.
+
+const PENDING_CHECK_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** Prune pending checks older than the TTL (3 days). */
+export async function prunePendingChecks(now: number = Date.now()): Promise<void> {
+  await db.pendingChecks.where('at').below(now - PENDING_CHECK_TTL_MS).delete();
+}
+
+/** Upsert a pending check row (latest kind/timestamp wins). */
+export async function addPendingCheck(
+  consignmentId: string,
+  business: string,
+  kind: 'print' | 'sort',
+  timestamp: number = Date.now()
+): Promise<void> {
+  await db.pendingChecks.put({ id: consignmentId, business, kind, at: timestamp });
+}
+
+/** Pending checks grouped by business, newest first. Prunes expired rows. */
+export async function getPendingChecks(): Promise<
+  Record<string, Array<{ id: string; kind: string; at: number }>>
+> {
+  await prunePendingChecks();
+  const rows = await db.pendingChecks.orderBy('at').reverse().toArray();
+  const grouped: Record<string, Array<{ id: string; kind: string; at: number }>> = {};
+  for (const row of rows) {
+    if (!grouped[row.business]) grouped[row.business] = [];
+    grouped[row.business].push({ id: row.id, kind: row.kind, at: row.at });
+  }
+  return grouped;
+}
+
+/** Remove the pending check entry for a consignment (resolution auto-cleanup). */
+export async function removePendingCheck(consignmentId: string): Promise<void> {
+  await db.pendingChecks.delete(consignmentId);
 }
 
 /**

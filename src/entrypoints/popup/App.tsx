@@ -71,6 +71,9 @@ export default function App() {
   const [allConsignments, setAllConsignments] = useState<
     Record<string, Array<{ id: string; at: number }>>
   >({});
+  const [pendingChecks, setPendingChecks] = useState<
+    Record<string, Array<{ id: string; kind: string; at: number }>>
+  >({});
   const [selectedMerchant, setSelectedMerchant] = useState<string>('');
   const [isDisabled, setIsDisabled] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -79,6 +82,13 @@ export default function App() {
     chrome.runtime.sendMessage({ type: 'CB_GET_CONSIGNMENTS' }, (response) => {
       if (chrome.runtime.lastError || !response) return;
       setAllConsignments(response.businesses || {});
+    });
+  }, []);
+
+  const loadPendingChecks = useCallback(() => {
+    chrome.runtime.sendMessage({ type: 'CB_GET_PENDING_CHECKS' }, (response) => {
+      if (chrome.runtime.lastError || !response) return;
+      setPendingChecks(response.grouped || {});
     });
   }, []);
 
@@ -118,6 +128,7 @@ export default function App() {
       () => {
         void chrome.runtime.lastError;
         loadConsignments();
+        loadPendingChecks();
       }
     );
 
@@ -156,7 +167,7 @@ export default function App() {
         }
       );
     });
-  }, [loadConsignments]);
+  }, [loadConsignments, loadPendingChecks]);
 
   // Listen for content script ready + consignment updates
   useEffect(() => {
@@ -266,6 +277,15 @@ export default function App() {
   const consignmentList = currentMerchant
     ? allConsignments[currentMerchant]
     : [];
+
+  const pendingMerchants = Object.entries(pendingChecks).filter(
+    ([, entries]) => entries.length > 0
+  );
+
+  const pendingTotal = pendingMerchants.reduce(
+    (s, [, entries]) => s + entries.length,
+    0
+  );
 
   // Copy all
   const handleCopy = () => {
@@ -465,6 +485,62 @@ export default function App() {
             </button>
           </div>
         </section>
+
+        {/* Pending check section */}
+        <div className="divider" />
+
+        {pendingMerchants.length > 0 && (
+          <section className="tracking-section pending-section">
+            <div className="tracking-header">
+              <span className="tracking-label pending-label">
+                ⚠ Pending check ({pendingTotal})
+              </span>
+            </div>
+
+            <div className="list-outer">
+              <div className="list-inner">
+                {pendingMerchants.map(([business, entries]) => (
+                  <div key={business} className="pending-group">
+                    <div className="pending-business">{business}</div>
+                    {entries.map((entry, idx) => (
+                      <div key={idx} className="list-item-outer">
+                        <div className="list-item-inner">
+                          <span
+                            className="list-item-id"
+                            dangerouslySetInnerHTML={{
+                              __html: escapeHtml(entry.id),
+                            }}
+                          />
+                          <span
+                            className={`list-item-kind ${
+                              entry.kind === 'print'
+                                ? 'kind-print'
+                                : 'kind-sort'
+                            }`}
+                            title={
+                              entry.kind === 'print'
+                                ? 'Print started but confirmation toast was not verified — check the parcel manually'
+                                : 'Print verified but sort did not confirm in time — check the parcel manually'
+                            }
+                          >
+                            {entry.kind === 'print'
+                              ? 'print unclear'
+                              : 'sort failed'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pending-hint">
+              Printed parcels whose print/sort could not be verified. Check them
+              on CarryBee — the extension will never auto-print these again.
+            </div>
+          </section>
+        )}
 
         <p className="hint">
           Toggle ON, pick a mode. Consignments tracked per business.

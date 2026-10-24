@@ -370,6 +370,48 @@ body {
   margin-left: 8px;
 }
 
+/* ============ Pending check ============ */
+
+.pending-label {
+  color: #b45309;
+}
+
+.pending-group + .pending-group {
+  border-top: 1px solid var(--cb-gray-100);
+}
+
+.pending-business {
+  padding: 6px 12px 2px;
+  font: 600 11px/1.4 'Inter', system-ui, sans-serif;
+  color: var(--cb-gray-600);
+  background: var(--cb-gray-50);
+  text-transform: capitalize;
+}
+
+.list-item-kind {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'Inter', system-ui, sans-serif;
+  flex-shrink: 0;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.kind-print {
+  color: #b45309;
+}
+
+.kind-sort {
+  color: #b91c1c;
+}
+
+.pending-hint {
+  padding: 8px 12px 4px;
+  font: 400 10.5px/1.45 'Inter', system-ui, sans-serif;
+  color: var(--cb-gray-500);
+  word-break: normal;
+}
+
 .list-item-outer:hover .list-item-inner {
   background: var(--cb-gray-50);
 }
