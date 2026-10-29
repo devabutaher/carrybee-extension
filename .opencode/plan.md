@@ -28,6 +28,18 @@
 - `src/entrypoints/content/index.ts` — locks, CFG 30s, printThenSort rewrite, runCodBatch/finishCodBatch/pickCodRow, graceful stop
 - Commit: `fix(cod): anti-double-print locks, 30s sort deadline, graceful stop` (d1f5782)
 
-## Next / ideas
-- ⬜ Manual QA on hive.carrybee.com with slow network throttling
-- ⬜ Optional: status badge showing "recovered" count for sort-only retries
+## Done (pending-check release — v2.1.4 code, not yet tagged)
+- ✅ Root-cause explanation: toast recorder per-node dedupe ate identical consecutive Sonner toasts (node recycle) → missed print toast → old code treated it fatal → "Print failed" + batch stop.
+- ✅ Recorder hardening: node+text dedupe now 300ms window only, recycled nodes re-record; universal `console.log("[Carrybee] toast:")` debug log.
+- ✅ Non-fatal print path (COD): print-timeout → pending lock + pendingCheck row (kind 'print') → parcel skipped, batch continues. Fatal only for other real errors.
+- ✅ Sort-stuck → pendingCheck row (kind 'sort') + batch stops with badge.
+- ✅ New Dexie table `pendingChecks` (schema v3): {id PK, business, kind 'print'|'sort', at}. 3-day TTL prune (hourly alarm + SW startup). NOT touched by daily reset.
+- ✅ Popup "⚠ Pending check (N)" section: grouped per business, ID + tag ("print unclear" orange / "sort failed" red) + hint text. Hidden when empty.
+- ✅ Auto-cleanup: verified sort success (any mode) → CB_REMOVE_PENDING_CHECK.
+- ✅ Badge text: `✓ N sorted · M unclear, K stuck (check popup)`.
+- ✅ Version 2.1.4 bumped (package.json, manifest, README), built + zipped, pushed v2 + main (e8800ca). Tag NOT created yet.
+
+## Decisions
+- Pending check = user-facing popup record; printLocks stays internal anti-double-print guard (no remark in consignment list — user chose separate table).
+- Remark = print verification only; sort-stuck w/ verified print shows "sort failed" kind row.
+- Removed stale pendingCheck on any verified sort success.

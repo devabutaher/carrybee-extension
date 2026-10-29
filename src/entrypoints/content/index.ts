@@ -321,15 +321,31 @@ export default defineContentScript({
     // ============ TOAST WATCHER ============
 
     /**
-     * Sonner recycles toast DOM nodes, so the old per-node "seen" dedupe could
-     * silently eat an identical consecutive toast ("Sending to printer…" on the
-     * same recycled node) — the variant that made "Print failed" appear even
-     * though the toast was visible. New rule: a node+text combination is only
-     * suppressed within a 300ms window; anything later records again.
+     * Recording rules — a toast is recorded only when it is a NEW event:
+     *   1. its DOM node was just mounted (added to the document) — covers
+     *      Sonner node recycling, where a recycled node must count as a fresh
+     *      toast (this is what fixed the COD "missed print toast" bug)
+     *   2. its text changed while standing (characterData updates)
+     *
+     * A still-standing, unchanged toast is NEVER re-recorded. The v2.1.4
+     * 300ms-window re-record rule accidentally re-fired stale sort toasts
+     * every render tick, which re-ran the sort-completion handler and put the
+     * badge into "No parcel found" after every sort.
      */
-    const toastSeenByNode = new WeakMap<Element, { text: string; at: number }>();
+    const toastTextByNode = new WeakMap<Element, string>();
+    let queuedNewToastNodes = new Set<Element>();
     let toastDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const TOAST_DEDUP_WINDOW_MS = 300;
+
+    /** Called from the observer for every freshly added node. */
+    function queueNewToastNodes(root: Element): void {
+      if (root.matches?.(SEL.toast)) {
+        queuedNewToastNodes.add(root);
+        return;
+      }
+      root
+        .querySelectorAll(SEL.toast)
+        .forEach((n) => queuedNewToastNodes.add(n));
+    }
 
     function recordToast(text: string, at: number): void {
       if (!text) return;
@@ -347,14 +363,19 @@ export default defineContentScript({
 
     function processToasts(): void {
       const now = Date.now();
+      const newNodes = queuedNewToastNodes;
+      queuedNewToastNodes = new Set<Element>();
       const toasts = Array.from(document.querySelectorAll(SEL.toast));
       for (const t of toasts) {
         const text = (t.textContent || "").trim();
         if (!text) continue;
-        const prev = toastSeenByNode.get(t);
-        if (prev && prev.text === text && now - prev.at < TOAST_DEDUP_WINDOW_MS)
-          continue;
-        toastSeenByNode.set(t, { text, at: now });
+        const prevText = toastTextByNode.get(t);
+        const isNewEvent =
+          newNodes.has(t) || // freshly mounted / re-mounted node
+          prevText === undefined || // first observation
+          prevText !== text; // text changed on a standing node
+        if (!isNewEvent) continue;
+        toastTextByNode.set(t, text);
         recordToast(text, now);
 
         if (isSortToast(text.toLowerCase())) {
@@ -442,17 +463,17 @@ export default defineContentScript({
         let hasInputCandidate = false;
 
         for (const m of mutations) {
-          if (hasToast && hasInputCandidate) break;
-          // Text updates inside existing toast nodes (characterData mutations)
-          if (!hasToast && m.type === "characterData") hasToast = true;
+          // No early break here: every batch must feed queueNewToastNodes so
+          // freshly mounted toast nodes are distinguishable from stale ones.
+          if (m.type === "characterData" || m.type === "childList")
+            hasToast = true;
           for (const node of m.addedNodes) {
             if (node.nodeType !== 1) continue;
             const el = node as Element;
-            if (
-              !hasToast &&
-              (el.matches?.(SEL.toast) || el.querySelector?.(SEL.toast))
-            )
+            if (el.matches?.(SEL.toast) || el.querySelector?.(SEL.toast)) {
               hasToast = true;
+              queueNewToastNodes(el);
+            }
             if (!hasInputCandidate && el.querySelector?.("input[placeholder]"))
               hasInputCandidate = true;
           }
