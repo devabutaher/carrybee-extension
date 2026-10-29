@@ -1,7 +1,10 @@
-# Session Context
+Session: COD version cycle (v2.x)
+Date: 2026-10-29
 
-Session: COD double-print fix + v2.1.3 release
-Date: 2026-10-19
+## v2.1.5 (fix shipped, tag pending)
+- Stale sort toast re-trigger fixed → "No parcel found" after sort gone
+- pushed v2+main (8795a6a); zip built
+- Next: COD v3 network-evidence plan (Phase 0 logger first)
 
 ## Release v2.1.4 (code shipped, tag pending user confirm)
 - Pending check popup section (per business, "print unclear"/"sort failed" tags)

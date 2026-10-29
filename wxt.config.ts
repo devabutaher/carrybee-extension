@@ -7,7 +7,7 @@ export default defineConfig({
     name: 'Carrybee Auto-Flow',
     description:
       'Automates the Order Processing flow on Carrybee. Supports Merchant Order ID, Customer Phone, COD Quantity, and Consignment ID modes.',
-    version: '2.1.5',
+    version: '2.1.6',
     minimum_chrome_version: '109',
     permissions: ['storage', 'activeTab', 'alarms', 'commands', 'tabs'],
     commands: {

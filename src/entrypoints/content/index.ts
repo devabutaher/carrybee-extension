@@ -719,15 +719,25 @@ export default defineContentScript({
 
     // ============ PRINT + SORT HELPER ============
 
+    /**
+     * Guard key for locks/pending records: prefer the consignment ID from the
+     * parcel cell; when that fails to parse, fall back to the row's
+     * data-order-id attribute so an unclear ID can never escape the record.
+     */
+    function idForGuard(row: Element): string | null {
+      return getConsignmentIdFromRow(row) || row.getAttribute("data-order-id") || null;
+    }
+
     async function printThenSort(
       row: Element,
       myToken: number,
       consignmentId: string | null,
     ): Promise<PrintThenSortResult> {
+      const guardId = idForGuard(row);
       // Print-only-once guard: if this consignment already got a verified
       // print, never click print again — go straight to sorting.
       const printAlreadyConfirmed =
-        !!consignmentId && printLocks.get(consignmentId) === "confirmed";
+        !!guardId && printLocks.get(guardId) === "confirmed";
 
       if (!printAlreadyConfirmed) {
         state = "PRINTING";
@@ -738,7 +748,7 @@ export default defineContentScript({
         // Lock before the click: even if the toast never lands (user stops
         // mid-load) the parcel can never be auto-printed twice. Worst case it
         // stays pending and the user prints/sorts it manually.
-        addPrintLock(consignmentId, "pending");
+        addPrintLock(guardId, "pending");
         printBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
         const printToast = await waitForToastSince(
@@ -755,12 +765,12 @@ export default defineContentScript({
           // lock (set before the click) already blocks any re-print; record
           // the parcel for the popup "Pending check" list and let the COD
           // batch skip it instead of killing the whole batch.
-          savePendingCheck(consignmentId, "print");
+          savePendingCheck(guardId, "print");
           return { ok: false, reason: "print-timeout" };
         }
 
         // Print verified → upgrade lock to confirmed (sort-only retry allowed).
-        addPrintLock(consignmentId, "confirmed");
+        addPrintLock(guardId, "confirmed");
       }
 
       state = "SORTING";
@@ -789,14 +799,28 @@ export default defineContentScript({
         if (!document.body.contains(row)) break;
       }
 
-      if (sortToast || !document.body.contains(row)) return { ok: true };
+      if (sortToast || !document.body.contains(row)) {
+        // "Already sorted"-style toast (site wording varies; matcher checks
+        // the word itself): the parcel is sorted but the row did not clear —
+        // stop the batch, the user verifies the last printed ID manually.
+        if (sortToast && sortToast.toLowerCase().includes("already")) {
+          setStatus("Sort failed", "error");
+          await sleep(1000);
+          if (consignmentId) {
+            await addConsignmentId(consignmentId, currentBusinessName!, false);
+          }
+          savePendingCheck(guardId, "sort");
+          return { ok: true, unverified: true };
+        }
+        return { ok: true };
+      }
 
       // Deadline hit, no confirmation: network stall or silent failure. The
       // consignment ID is already print-locked and saved to the consignment
       // list by the caller — the user checks/sorts it manually.
       setStatus("Sort failed", "error");
       await sleep(1000);
-      savePendingCheck(consignmentId, "sort");
+      savePendingCheck(guardId, "sort");
       return { ok: true, unverified: true };
     }
 
@@ -1086,7 +1110,9 @@ export default defineContentScript({
       return waitFor(() => {
         const rows = getRowsCached();
         for (const r of rows) {
-          const id = getConsignmentIdFromRow(r);
+          // Same effective-ID chain the print guard uses: consignment ID from
+          // the cell, falling back to the row's data-order-id attribute.
+          const id = idForGuard(r);
           if (id && printLocks.get(id) === "pending") continue;
           if (!findActionButton(r, "lucide-printer")) continue; // spinner / not ready
           return r;
@@ -1202,8 +1228,9 @@ export default defineContentScript({
         );
 
         const consignmentId = getConsignmentIdFromRow(row);
+        const guardId = idForGuard(row);
 
-        const result = await printThenSort(row, myToken, consignmentId);
+        const result = await printThenSort(row, myToken, guardId);
         if (myToken !== cycleToken) return;
 
         if (!result.ok) {
@@ -1213,7 +1240,9 @@ export default defineContentScript({
             // Skip this parcel, keep processing the rest of the batch.
             codUnclearCounter++;
             setCodProgress(
-              `Processing ${codQuantityCounter + 1}/${codQuantityTarget} · 1 skipped`,
+              `Print unclear — skipped ${codUnclearCounter} · processing ${
+                codQuantityCounter + 1
+              }/${codQuantityTarget}`,
             );
             continue;
           }
@@ -1247,7 +1276,7 @@ export default defineContentScript({
         if (myToken !== cycleToken) return;
 
         // Fully sorted now — drop any stale pending check for this parcel.
-        clearPendingCheck(consignmentId);
+        clearPendingCheck(guardId);
 
         codQuantityCounter++;
 

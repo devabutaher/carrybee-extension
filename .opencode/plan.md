@@ -28,6 +28,13 @@
 - `src/entrypoints/content/index.ts` — locks, CFG 30s, printThenSort rewrite, runCodBatch/finishCodBatch/pickCodRow, graceful stop
 - Commit: `fix(cod): anti-double-print locks, 30s sort deadline, graceful stop` (d1f5782)
 
+## Done (v2.1.5 — toast re-record bug fix)
+- ✅ "No parcel found" after every sort: v2.1.4's 300ms re-record rule re-fired stale sort toasts → handleManualSortCompletion re-ran → emptied list → badge bug.
+- ✅ New recording rules: toast recorded ONLY on (1) newly mounted/re-mounted node (queueNewToastNodes from observer) or (2) text change. Standing stale toasts never re-record. Recycled print toasts still detected (COD fix preserved).
+- ✅ Observer: removed early break, feeds queueNewToastNodes; charData still triggers process.
+- ✅ Version 2.1.5, built, pushed v2+main (8795a6a). Tag not created yet.
+- ⬜ COD v3 planning: Phase 0 logger build (network-evidence design approved by user).
+
 ## Done (pending-check release — v2.1.4 code, not yet tagged)
 - ✅ Root-cause explanation: toast recorder per-node dedupe ate identical consecutive Sonner toasts (node recycle) → missed print toast → old code treated it fatal → "Print failed" + batch stop.
 - ✅ Recorder hardening: node+text dedupe now 300ms window only, recycled nodes re-record; universal `console.log("[Carrybee] toast:")` debug log.

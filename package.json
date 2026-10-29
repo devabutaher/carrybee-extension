@@ -1,6 +1,6 @@
 {
   "name": "carrybee-auto-flow",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "description": "Automates the Order Processing flow on Carrybee. Supports Merchant Order ID, Customer Phone, COD Quantity, and Consignment ID modes.",
   "private": true,
   "type": "module",

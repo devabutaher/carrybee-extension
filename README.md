@@ -1,10 +1,10 @@
-# Carrybee Auto-Flow v2.1.5
+# Carrybee Auto-Flow v2.1.6
 
 Automates the Order Processing flow on Carrybee Hive. Supports Merchant Order ID, Customer Phone, COD Quantity, and Consignment ID modes.
 
 ## Installation
 
-1. Download `carrybee-v2.zip` from [Releases](https://github.com/devabutaher/carrybee-extension/releases/tag/v2.1.5)
+1. Download `carrybee-v2.zip` from [Releases](https://github.com/devabutaher/carrybee-extension/releases/tag/v2.1.6)
 2. Extract the ZIP file
 3. Open `chrome://extensions` in your browser
 4. Enable **Developer mode** (top right toggle)
