@@ -28,6 +28,13 @@
 - `src/entrypoints/content/index.ts` — locks, CFG 30s, printThenSort rewrite, runCodBatch/finishCodBatch/pickCodRow, graceful stop
 - Commit: `fix(cod): anti-double-print locks, 30s sort deadline, graceful stop` (d1f5782)
 
+## Done (v2.1.6 — COD gap fixes, released)
+- ✅ "Already" toast detection: any sort-phase toast containing "already" → NOT success → COD batch stops + pendingCheck record (kind 'sort') + ID also saved to consignment list. Row-removal still success.
+- ✅ Guard-ID fallback: `idForGuard()` = consignmentId || row data-order-id — used for print locks, pickCodRow skip, pendingCheck save/clear. Unclear ID can never escape popup record.
+- ✅ Skip badge wording: `Print unclear — skipped N · processing X/Y`.
+- ✅ Released: tag v2.1.6 → workflow success → zip attached.
+- ⬜ COD v3 planning (network-evidence) still open.
+
 ## Done (v2.1.5 — toast re-record bug fix)
 - ✅ "No parcel found" after every sort: v2.1.4's 300ms re-record rule re-fired stale sort toasts → handleManualSortCompletion re-ran → emptied list → badge bug.
 - ✅ New recording rules: toast recorded ONLY on (1) newly mounted/re-mounted node (queueNewToastNodes from observer) or (2) text change. Standing stale toasts never re-record. Recycled print toasts still detected (COD fix preserved).

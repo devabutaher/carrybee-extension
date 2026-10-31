@@ -286,6 +286,22 @@ export default defineContentScript({
       if (codStopButtonEl) codStopButtonEl.style.display = "none";
       input.value = "";
       setStatus("Ready — COD Quantity", "info");
+      updateCodRowCount();
+    }
+
+    /**
+     * Milestone 0: live parcel count next to the COD qty input, so the user
+     * knows how many parcels the batch is about to process before typing an
+     * amount. Updated every second while COD is enabled and idle — cheap and
+     * immune to missed DOM mutations.
+     */
+    function updateCodRowCount(): void {
+      if (!enabled || mode !== "cod" || state !== "IDLE") return;
+      const el = document.getElementById("cb-cod-row-count");
+      if (!el) return;
+      const n = getRowsCached().length;
+      const text = `${n} parcel${n === 1 ? "" : "s"}`;
+      if (el.textContent !== text) el.textContent = text;
     }
 
     function hideCodQuantityInput(): void {
@@ -559,6 +575,10 @@ export default defineContentScript({
             </svg>
           </span>
         </button>
+        <span
+          id="cb-cod-row-count"
+          style="font-size:11px;font-weight:700;white-space:nowrap;color:#0f766e;background:#ecfdf5;border:1px solid #99f6e4;border-radius:4px;padding:2px 7px;"
+        ></span>
         <button id="cb-cod-stop-btn" style="display:none;">Stop</button>
       `;
 
@@ -1530,6 +1550,7 @@ export default defineContentScript({
 
         wireUrlWatcher();
         onUrlChange();
+        setInterval(updateCodRowCount, 1000);
 
         watchDom();
         attachInputListeners();

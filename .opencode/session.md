@@ -1,6 +1,12 @@
 Session: COD version cycle (v2.x)
 Date: 2026-10-29
 
+## v2.1.6 (released 2026-10-29)
+- "Already sorted" toast → COD stops + popup record (user-requested wording match)
+- Guard-ID fallback (data-order-id) so print-unclear never misses popup record
+- Skip badge: "Print unclear — skipped N · processing X/Y"
+- https://github.com/devabutaher/carrybee-extension/releases/tag/v2.1.6
+
 ## v2.1.5 (fix shipped, tag pending)
 - Stale sort toast re-trigger fixed → "No parcel found" after sort gone
 - pushed v2+main (8795a6a); zip built
