@@ -1,6 +1,11 @@
 Session: COD version cycle (v2.x)
 Date: 2026-10-29
 
+## v2.2.0-alpha.1 (milestone 0+1, released 2026-10-31)
+- Parcel count badge next to COD qty input (`updateCodRowCount`, 1s interval, `N parcels` pill)
+- Main-world net logger `src/entrypoints/net-logger.content.ts` (fetch+XHR hook, `[Carrybee/Net]` console lines, `window.__CB_NET` buffer)
+- ⬜ WAITING ON USER: paste `[Carrybee/Net]` lines after manual print + sort click → then COD v3 P1 (evidence-driven rewrite)
+
 ## v2.1.6 (released 2026-10-29)
 - "Already sorted" toast → COD stops + popup record (user-requested wording match)
 - Guard-ID fallback (data-order-id) so print-unclear never misses popup record
